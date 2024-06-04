@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 macroquad = "0.4.7"
+macroquad-tiled = "0.2.1"
