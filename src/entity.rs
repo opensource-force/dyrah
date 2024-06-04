@@ -1,7 +1,7 @@
 use super::*;
 
 pub struct Entity {
-    rect: Rect,
+    pub rect: Rect,
     tex: Texture2D
 }
 
@@ -15,13 +15,13 @@ impl Entity {
 
     pub fn update(&mut self) {
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            self.rect.y -= 1.0;
+            self.rect.y -= 16.0;
         } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            self.rect.x -= 1.0;
+            self.rect.x -= 16.0;
         } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            self.rect.y += 1.0;
+            self.rect.y += 16.0;
         } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            self.rect.x += 1.0;
+            self.rect.x += 16.0;
         }
     }
     
