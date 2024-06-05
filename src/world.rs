@@ -26,7 +26,7 @@ impl World {
     }
 
     pub fn update(&mut self) {
-        self.map.update();
+        //self.map.update();
         self.player.update();
 
         self.camera.target = Vec2::new(
