@@ -8,10 +8,11 @@ use world::*;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
-    let player_tex = load_texture("assets/pot_leaf.png").await.unwrap();
-    let mut world = World::new(player_tex).await;
+    let mut world = World::new().await;
 
     loop {
+        //clear_background(WHITE);
+
         world.update();
         world.draw();
 

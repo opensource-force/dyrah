@@ -10,9 +10,12 @@ pub struct World {
 }
 
 impl World {
-    pub async fn new(tex: Texture2D) -> Self {
-        let camera = Camera2D::from_display_rect(Rect::new(0.0, screen_width(), screen_width(), -screen_height()));
-
+    pub async fn new() -> Self {
+        let camera = Camera2D::from_display_rect(Rect::new(
+            0.0, screen_width(),
+            screen_width(), -screen_height())
+        );
+        
         Self {
             map: Map::new("assets/tileset.png", "assets/tilemap.json").await,
             camera,
@@ -20,8 +23,8 @@ impl World {
                 screen_width()/2.0,
                 screen_height()/2.0,
                 32.0, 32.0,
-                tex
-            )
+                "assets/critters/wolf/wolf-all.png"
+            ).await
         }
     }
 
@@ -35,7 +38,7 @@ impl World {
         );
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&mut self) {
         set_camera(&self.camera);
 
         self.map.draw();
