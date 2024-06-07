@@ -5,7 +5,8 @@ use super::*;
 pub struct Entity {
     pub rect: Rect,
     tex: Texture2D,
-    sprite: AnimatedSprite
+    sprite: AnimatedSprite,
+    velocity: Vec2
 }
 
 impl Entity {
@@ -13,7 +14,8 @@ impl Entity {
         Self {
             rect: Rect::new(x, y, w, h),
             tex: load_texture(tex_path).await.unwrap(),
-            sprite: AnimatedSprite::new(64, 64, &animations, true)
+            sprite: AnimatedSprite::new(64, 64, &animations, true),
+            velocity: vec2(0.0, 0.0)
         }
     }
 
@@ -21,7 +23,10 @@ impl Entity {
         self.sprite.update();
     }
     
-    pub fn draw(&mut self) {
+    pub fn draw(&mut self, speed: f32) {
+        self.rect.x += self.velocity.x * speed;
+        self.rect.y += self.velocity.y * speed;
+
         draw_texture_ex(
             &self.tex,
             self.rect.x,
@@ -34,52 +39,44 @@ impl Entity {
             }
         );
     }
-}
 
-pub trait Animator {
-    fn anamation(name: &str, row: u32, cols: u32, fps: u32) -> Animation;
-    fn animate(&mut self, index: usize);
-}
-
-impl Animator for Entity {
-    fn anamation(name: &str, row: u32, cols: u32, fps: u32) -> Animation {
+    pub fn animation(name: &str, row: u32, cols: u32, fps: u32) -> Animation {
         Animation { name: name.to_string(), row, frames: cols, fps }
     }
-    fn animate(&mut self, index: usize) {
-        self.sprite.set_animation(index);
-    }
-}
 
-pub trait InputHandler {
-    fn handle_input(&mut self);
-}
-
-impl InputHandler for Entity {
-    fn handle_input(&mut self) {
-        if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            self.rect.x += 8.0;
-            self.rect.y -= 8.0;
-            self.animate(4);
-        } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            self.rect.x -= 8.0;
-            self.rect.y -= 8.0;
-            self.animate(5);
-        } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            self.rect.x -= 8.0;
-            self.rect.y += 8.0;
-            self.animate(6);
-        } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            self.rect.x += 8.0;
-            self.rect.y += 8.0;
-            self.animate(7);
-        } else {
-            match self.sprite.current_animation() {
-                4 => self.animate(0),
-                5 => self.animate(1),
-                6 => self.animate(2),
-                7 => self.animate(3),
-                _ => {}
+    pub fn ai_controller(&mut self) {
+        let (velocity, animation) = match rand::gen_range(0, 7) {
+            0 => (vec2(1.0, -1.0), 4),
+            1 => (vec2(-1.0, -1.0), 5),
+            2 => (vec2(-1.0, 1.0), 6),
+            3 => (vec2(1.0, 1.0), 7),
+            _ => {
+                (Vec2::ZERO, match self.sprite.current_animation() {
+                    4 => 0, 5 => 1, 6 => 2, 7 => 3, _ => return
+                })
             }
-        }
+        };
+
+        self.velocity = velocity;
+        self.sprite.set_animation(animation);
+    }
+
+    pub fn keyboard_controller(&mut self) {
+        let (velocity, animation) = if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
+            (vec2(1.0, -1.0), 4)
+        } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
+            (vec2(-1.0, -1.0), 5)
+        } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
+            (vec2(-1.0, 1.0), 6)
+        } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
+            (vec2(1.0, 1.0), 7)
+        } else {
+            (Vec2::ZERO, match self.sprite.current_animation() {
+                4 => 0, 5 => 1, 6 => 2, 7 => 3, _ => return
+            })
+        };
+
+        self.velocity = velocity;
+        self.sprite.set_animation(animation);
     }
 }
