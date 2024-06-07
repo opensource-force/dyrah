@@ -61,9 +61,13 @@ impl World {
         //self.map.update();
         self.player.update();
         self.player.keyboard_controller();
-        
+
         for enemy in &mut self.enemies {
             enemy.update();
+
+            if self.player.aabb(enemy.rect) {
+                println!("{}: Encountered an enemy!", get_time());
+            }
         }
 
         if get_time() - self.time > 1.0 {

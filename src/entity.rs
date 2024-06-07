@@ -6,7 +6,7 @@ pub struct Entity {
     pub rect: Rect,
     tex: Texture2D,
     sprite: AnimatedSprite,
-    velocity: Vec2
+    pub velocity: Vec2
 }
 
 impl Entity {
@@ -78,5 +78,25 @@ impl Entity {
 
         self.velocity = velocity;
         self.sprite.set_animation(animation);
+    }
+
+    pub fn aabb(&mut self, rect: Rect) -> bool {
+        if rect.x + rect.w >= self.rect.x
+            && rect.x <= self.rect.x + rect.w
+            && rect.y + rect.w >= self.rect.y
+            && rect.y <= self.rect.y + rect.w
+        {
+            let push = self.rect.center() - rect.center();
+            let push = push.normalize();
+            
+            self.rect.x += push.x;
+            self.rect.y += push.y;
+
+            self.velocity = Vec2::ZERO;
+
+            return true
+        }
+
+        return false
     }
 }
