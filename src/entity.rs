@@ -9,96 +9,16 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub async fn new(x: f32, y: f32, w: f32, h: f32, path: &str) -> Self {
-        let tex = load_texture(path).await.unwrap();
-        let mut sprite = AnimatedSprite::new(
-            64, 64, &[
-                Animation {
-                    name: "idle_up".to_string(),
-                    row: 11,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "idle_left".to_string(),
-                    row: 10,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "idle_down".to_string(),
-                    row: 8,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "idle_right".to_string(),
-                    row: 9,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "walk_up".to_string(),
-                    row: 15,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "walk_left".to_string(),
-                    row: 14,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "walk_down".to_string(),
-                    row: 12,
-                    frames: 8,
-                    fps: 8
-                },
-                Animation {
-                    name: "walk_right".to_string(),
-                    row: 13,
-                    frames: 8,
-                    fps: 8
-                }
-            ], true
-        );
-
-        sprite.set_animation(0);
-
+    pub async fn new(x: f32, y: f32, w: f32, h: f32, tex_path: &str, animations: Vec<Animation>) -> Self {
         Self {
             rect: Rect::new(x, y, w, h),
-            tex,
-            sprite
+            tex: load_texture(tex_path).await.unwrap(),
+            sprite: AnimatedSprite::new(64, 64, &animations, true)
         }
     }
 
     pub fn update(&mut self) {
-        if is_key_released(KeyCode::W) || is_key_released(KeyCode::Up) {
-            self.sprite.set_animation(0);
-        } else if is_key_released(KeyCode::S) || is_key_released(KeyCode::Left) {
-            self.sprite.set_animation(1);
-        } else if is_key_pressed(KeyCode::A) || is_key_released(KeyCode::Down) {
-            self.sprite.set_animation(2);
-        } else if is_key_released(KeyCode::D) || is_key_released(KeyCode::Right) {
-            self.sprite.set_animation(3);
-        } else if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            self.rect.x += 8.0;
-            self.rect.y -= 8.0;
-            self.sprite.set_animation(4);
-        } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            self.rect.x -= 8.0;
-            self.rect.y -= 8.0;
-            self.sprite.set_animation(5);
-        } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            self.rect.x -= 8.0;
-            self.rect.y += 8.0;
-            self.sprite.set_animation(6);
-        } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            self.rect.x += 8.0;
-            self.rect.y += 8.0;
-            self.sprite.set_animation(7);
-        }
+        self.sprite.update();
     }
     
     pub fn draw(&mut self) {
@@ -113,7 +33,53 @@ impl Entity {
                 ..Default::default()
             }
         );
+    }
+}
 
-        self.sprite.update();
-    }    
+pub trait Animator {
+    fn anamation(name: &str, row: u32, cols: u32, fps: u32) -> Animation;
+    fn animate(&mut self, index: usize);
+}
+
+impl Animator for Entity {
+    fn anamation(name: &str, row: u32, cols: u32, fps: u32) -> Animation {
+        Animation { name: name.to_string(), row, frames: cols, fps }
+    }
+    fn animate(&mut self, index: usize) {
+        self.sprite.set_animation(index);
+    }
+}
+
+pub trait InputHandler {
+    fn handle_input(&mut self);
+}
+
+impl InputHandler for Entity {
+    fn handle_input(&mut self) {
+        if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
+            self.rect.x += 8.0;
+            self.rect.y -= 8.0;
+            self.animate(4);
+        } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
+            self.rect.x -= 8.0;
+            self.rect.y -= 8.0;
+            self.animate(5);
+        } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
+            self.rect.x -= 8.0;
+            self.rect.y += 8.0;
+            self.animate(6);
+        } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
+            self.rect.x += 8.0;
+            self.rect.y += 8.0;
+            self.animate(7);
+        } else {
+            match self.sprite.current_animation() {
+                4 => self.animate(0),
+                5 => self.animate(1),
+                6 => self.animate(2),
+                7 => self.animate(3),
+                _ => {}
+            }
+        }
+    }
 }
