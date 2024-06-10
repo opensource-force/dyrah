@@ -43,7 +43,7 @@ impl World {
                 screen_width(), -screen_height()
             )),
             player: Entity::new(
-                -800.0, 1600.0, 32.0, 32.0,
+                0.0, 640.0, 32.0, 32.0,
                 "assets/critters/wolf/wolf-all.png",
                 wolf_animations
             ).await,

@@ -51,13 +51,13 @@ impl Map {
                     if collision {
                         self.colliders.push(
                             Rect::new(
-                                world_pos.x, world_pos.y,
+                                world_pos.x - 16.0, world_pos.y - 16.0,
                                 TILE_WIDTH, TILE_HEIGHT
                             )
                         );
 
                         draw_rectangle_lines(
-                            world_pos.x + 16.0, world_pos.y + 16.0,
+                            world_pos.x, world_pos.y,
                             TILE_WIDTH, TILE_HEIGHT, 2.0,
                             RED
                         );
