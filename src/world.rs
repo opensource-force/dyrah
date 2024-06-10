@@ -12,7 +12,7 @@ pub struct World {
 
 impl World {
     pub async fn new() -> Self {
-        let wolf_animation = vec![
+        let wolf_animations = vec![
             Entity::animation("idle_up", 11, 8, 5),
             Entity::animation("idle_left", 10, 8, 5),
             Entity::animation("idle_down", 8, 8, 5),
@@ -23,15 +23,15 @@ impl World {
             Entity::animation("walk_right", 13, 8, 15)
         ];
         let mut enemies = Vec::new();
-
-        for _ in 0..150 {
+        
+        for _ in 0..25 {
             enemies.push(
                 Entity::new(
-                    rand::gen_range(-1600.0, 1600.0),
-                    rand::gen_range(800.0, 2200.0),
+                    rand::gen_range(-640.0, 640.0),
+                    rand::gen_range(320.0, 1280.0),
                     32.0, 32.0,
                     "assets/critters/wolf/wolf-all.png",
-                    wolf_animation.clone()
+                    wolf_animations.clone()
                 ).await
             )
         }
@@ -45,7 +45,7 @@ impl World {
             player: Entity::new(
                 -800.0, 1600.0, 32.0, 32.0,
                 "assets/critters/wolf/wolf-all.png",
-                wolf_animation
+                wolf_animations
             ).await,
             enemies,
             time: get_time()
@@ -62,12 +62,26 @@ impl World {
         self.player.update();
         self.player.keyboard_controller();
 
+        for collider in &self.map.colliders {
+            if self.player.aabb(collider) {
+                println!("{}: Encountered a prop", get_time());
+            }
+        }
+
         for enemy in &mut self.enemies {
             enemy.update();
-
-            if self.player.aabb(enemy.rect) {
-                println!("{}: Encountered an enemy!", get_time());
+            
+            if self.player.aabb(&enemy.rect) {
+                println!("{}: Encountered an enemy", get_time());
             }
+
+            /* not the most performant
+            for collider in &self.map.colliders {
+                if enemy.aabb(collider) {
+                    println!("{}: Enemy encounted a prop", get_time());
+                }
+            }
+            */
         }
 
         if get_time() - self.time > 1.0 {

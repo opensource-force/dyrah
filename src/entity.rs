@@ -10,11 +10,17 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub async fn new(x: f32, y: f32, w: f32, h: f32, tex_path: &str, animations: Vec<Animation>) -> Self {
+    pub async fn new(
+        x: f32, y: f32, w: f32, h: f32,
+        tex_path: &str, animations: Vec<Animation>
+    ) -> Self {
         Self {
             rect: Rect::new(x, y, w, h),
             tex: load_texture(tex_path).await.unwrap(),
-            sprite: AnimatedSprite::new(64, 64, &animations, true),
+            sprite: AnimatedSprite::new(
+                64, 64,
+                &animations, true
+            ),
             velocity: vec2(0.0, 0.0)
         }
     }
@@ -29,14 +35,19 @@ impl Entity {
 
         draw_texture_ex(
             &self.tex,
-            self.rect.x,
-            self.rect.y,
+            self.rect.x, self.rect.y,
             WHITE,
             DrawTextureParams {
                 source: Some(self.sprite.frame().source_rect),
                 dest_size: Some(self.sprite.frame().dest_size),
                 ..Default::default()
             }
+        );
+
+        draw_rectangle_lines(
+            self.rect.x + 16.0, self.rect.y + 16.0,
+            32.0, 32.0, 2.0,
+            RED
         );
     }
 
@@ -80,19 +91,17 @@ impl Entity {
         self.sprite.set_animation(animation);
     }
 
-    pub fn aabb(&mut self, rect: Rect) -> bool {
+    pub fn aabb(&mut self, rect: &Rect) -> bool {
         if rect.x + rect.w >= self.rect.x
             && rect.x <= self.rect.x + rect.w
             && rect.y + rect.w >= self.rect.y
             && rect.y <= self.rect.y + rect.w
         {
-            let push = self.rect.center() - rect.center();
-            let push = push.normalize();
+            let push = (self.rect.center() - rect.center()).normalize();
             
+            self.velocity = Vec2::ZERO;
             self.rect.x += push.x;
             self.rect.y += push.y;
-
-            self.velocity = Vec2::ZERO;
 
             return true
         }

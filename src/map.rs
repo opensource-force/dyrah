@@ -1,11 +1,14 @@
-use super::*;
-
 use macroquad_tiled as tiled;
 
-const TILE_SIZE: Vec2 = vec2(64.0, 64.0);
+use super::*;
+
+const TILE_WIDTH: f32 = 32.0;
+const TILE_HEIGHT: f32 = 32.0;
+const TILE_SIZE: Vec2 = vec2(TILE_WIDTH, TILE_HEIGHT);
 
 pub struct Map {
-    tilemap: tiled::Map
+    pub tilemap: tiled::Map,
+    pub colliders: Vec<Rect>
 }
 
 impl Map {
@@ -13,35 +16,53 @@ impl Map {
         let tex = load_texture(tex_path).await.unwrap();
         tex.set_filter(FilterMode::Nearest);
 
-        let data = load_string(data_path).await.unwrap();
-        let tilemap = tiled::load_map(
-            &data, &[("tileset.png", tex.clone())],
-            &[]
-        ).unwrap();
-
-        Self { tilemap }
+        Self {
+            tilemap: tiled::load_map(
+                &load_string(data_path).await.unwrap(),
+                &[("tileset.png", tex)], &[]
+            ).unwrap(),
+            colliders: Vec::new()
+        }
     }
 
-    pub fn draw(&self) {
-        draw_isometric_tiles(&self.tilemap, "Base");
-        draw_isometric_tiles(&self.tilemap, "Props");
+    pub fn draw(&mut self) {
+        self.draw_isometric_tiles("Base", false);
+        self.draw_isometric_tiles("Props", true);
     }
-}
 
-fn draw_isometric_tiles(tilemap: &tiled::Map, layer: &str) {
-    let map_layer = &tilemap.layers[layer];
+    fn draw_isometric_tiles(&mut self, layer: &str, collision: bool) {
+        let map_layer = &self.tilemap.layers[layer];
+    
+        for y in 0..map_layer.height {
+            for x in 0..map_layer.width {
+                if let Some(tile) = &self.tilemap.get_tile(layer, x, y) {
+                    let world_pos = map_to_world(vec2(x as f32, y as f32));
+    
+                    tiled::Map::spr(
+                        &self.tilemap,
+                        "tileset",
+                        tile.id,
+                        Rect::new(
+                            world_pos.x, world_pos.y,
+                            TILE_WIDTH, TILE_HEIGHT
+                        )
+                    );
 
-    for y in 0..map_layer.height {
-        for x in 0..map_layer.width {
-            if let Some(tile) = tilemap.get_tile(layer, x, y) {
-                let world_pos = map_to_world(vec2(x as f32, y as f32));
+                    if collision {
+                        self.colliders.push(
+                            Rect::new(
+                                world_pos.x, world_pos.y,
+                                TILE_WIDTH, TILE_HEIGHT
+                            )
+                        );
 
-                tiled::Map::spr(
-                    &tilemap,
-                    "tileset",
-                    tile.id,
-                    Rect::new(world_pos.x, world_pos.y, 64.0, 64.0)
-                );
+                        draw_rectangle_lines(
+                            world_pos.x + 16.0, world_pos.y + 16.0,
+                            TILE_WIDTH, TILE_HEIGHT, 2.0,
+                            RED
+                        );
+                    }
+                }
             }
         }
     }
