@@ -43,12 +43,6 @@ impl Entity {
                 ..Default::default()
             }
         );
-
-        draw_rectangle_lines(
-            self.rect.x + 16.0, self.rect.y + 16.0,
-            32.0, 32.0, 2.0,
-            RED
-        );
     }
 
     pub fn ai_controller(&mut self) {

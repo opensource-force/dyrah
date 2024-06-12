@@ -12,7 +12,7 @@ pub struct Tile {
 
 pub struct Map {
     pub tilemap: tiled::Map,
-    pub tiles: Vec<Tile>
+    pub chunks: Vec<Tile>
 }
 
 impl Map {
@@ -25,12 +25,12 @@ impl Map {
                 &load_string(data_path).await.unwrap(),
                 &[("tileset.png", tex)], &[]
             ).unwrap(),
-            tiles: Vec::new()
+            chunks: Vec::new()
         }
     }
 
-    pub fn update(&mut self) {
-        self.tiles.clear();
+    pub fn update(&mut self, player_x: f32, player_y: f32) {
+        self.chunks.clear();
 
         for layer in ["Base", "Props"] {
             let map_layer = &self.tilemap.layers[layer];
@@ -40,15 +40,21 @@ impl Map {
                     if let Some(tile) = &self.tilemap.get_tile(layer, x, y) {
                         let world_pos = map_to_world(vec2(x as f32, y as f32));
 
-                        let tile = Tile {
-                            id: tile.id,
-                            rect: Rect::new(
-                                world_pos.x, world_pos.y,
-                                TILE_SIZE.x, TILE_SIZE.y
-                            ),
-                            walkable: layer == "Base"
-                        };
-                        self.tiles.push(tile);
+                        if world_pos.x < player_x + screen_width() / 3.0
+                            && world_pos.x > player_x - screen_width() / 3.0
+                            && world_pos.y < player_y + screen_height() / 3.0
+                            && world_pos.y > player_y - screen_height() / 3.0
+                        {
+                            let tile = Tile {
+                                id: tile.id,
+                                rect: Rect::new(
+                                    world_pos.x, world_pos.y,
+                                    TILE_SIZE.x, TILE_SIZE.y
+                                ),
+                                walkable: layer == "Base"
+                            };
+                            self.chunks.push(tile);
+                        }
                     }
                 }
             }
@@ -56,26 +62,16 @@ impl Map {
     }
 
     pub fn draw(&mut self) {
-        for tile in &self.tiles {
-            let tile_offset = Rect::new(
-                tile.rect.x + 16.0, tile.rect.y + 16.0,
-                tile.rect.w, tile.rect.h
-            );
-            
+        for tile in &self.chunks {
             tiled::Map::spr(
                 &self.tilemap,
                 "tileset",
                 tile.id,
-                tile_offset
+                Rect::new(
+                    tile.rect.x + 16.0, tile.rect.y + 16.0,
+                    tile.rect.w, tile.rect.h
+                )
             );
-
-            if !tile.walkable {
-                draw_rectangle_lines(
-                    tile_offset.x, tile_offset.y,
-                    tile_offset.w, tile_offset.h,
-                    2.0, RED
-                );
-            }
         }
     }
 }

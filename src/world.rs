@@ -27,7 +27,7 @@ impl World {
         ];
         let mut enemies = Vec::new();
         
-        for _ in 0..100 {
+        for _ in 0..50 {
             enemies.push(
                 Entity::new(
                     rand::gen_range(-640.0, 640.0),
@@ -63,11 +63,11 @@ impl World {
             self.player.rect.y + self.player.rect.h / 2.0
         );
 
-        self.map.update();
+        self.map.update(self.player.rect.x, self.player.rect.y);
         self.player.update();
         self.player.keyboard_controller();
 
-        for tile in &self.map.tiles {
+        for tile in &self.map.chunks {
             if !tile.walkable {
                 if self.player.aabb(&tile.rect) {
                     println!("{}: Encountered a prop", get_time());
@@ -88,7 +88,7 @@ impl World {
                 break;
             }
             
-            for tile in &self.map.tiles {
+            for tile in &self.map.chunks {
                 if !tile.walkable {
                     if enemy.aabb(&tile.rect) {
                         println!("{}: Enemy encounted a prop", get_time());
@@ -111,12 +111,41 @@ impl World {
 
     pub fn draw(&mut self) {
         self.map.draw();
+
+        for tile in &self.map.chunks {
+            if !tile.walkable {
+                draw_rectangle_lines(
+                    tile.rect.x + 16.0, tile.rect.y + 16.0,
+                    tile.rect.w, tile.rect.h,
+                    2.0, GREEN
+                );
+            }
+        }
+
         self.player.draw(4.0);
+        
+        draw_rectangle_lines(
+            self.player.rect.x + 16.0, self.player.rect.y + 16.0,
+            32.0, 32.0, 2.0,
+            BLUE
+        );
 
         set_camera(&self.camera);
         
         for enemy in &mut self.enemies {
-            enemy.draw(1.0);
+            if self.player.rect.x < enemy.rect.x + screen_width() / 4.0
+                && self.player.rect.x > enemy.rect.x - screen_width() / 4.0
+                && self.player.rect.y < enemy.rect.y + screen_height() / 4.0
+                && self.player.rect.y > enemy.rect.y - screen_height() / 4.0
+            {
+                enemy.draw(1.0);
+
+                draw_rectangle_lines(
+                    enemy.rect.x + 16.0, enemy.rect.y + 16.0,
+                    32.0, 32.0, 2.0,
+                    RED
+                );
+            }
         }
     }
 }
