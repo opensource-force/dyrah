@@ -1,6 +1,6 @@
-use animation::{AnimatedSprite, Animation};
-
 use super::*;
+
+use animation::{AnimatedSprite, Animation};
 
 pub struct Entity {
     pub rect: Rect,
@@ -51,10 +51,6 @@ impl Entity {
         );
     }
 
-    pub fn animation(name: &str, row: u32, cols: u32, fps: u32) -> Animation {
-        Animation { name: name.to_string(), row, frames: cols, fps }
-    }
-
     pub fn ai_controller(&mut self) {
         let (velocity, animation) = match rand::gen_range(0, 7) {
             0 => (vec2(1.0, -1.0), 4),
@@ -97,15 +93,17 @@ impl Entity {
             && rect.y + rect.w >= self.rect.y
             && rect.y <= self.rect.y + rect.w
         {
-            let push = (self.rect.center() - rect.center()).normalize();
-            
-            self.velocity = Vec2::ZERO;
-            self.rect.x += push.x;
-            self.rect.y += push.y;
-
             return true
         }
 
         return false
+    }
+
+    pub fn collide(&mut self, rect: &Rect) {
+        let push = (self.rect.center() - rect.center()).normalize();
+            
+        self.velocity = Vec2::ZERO;
+        self.rect.x += push.x;
+        self.rect.y += push.y;
     }
 }
