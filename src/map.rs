@@ -1,14 +1,18 @@
-use macroquad_tiled as tiled;
-
 use super::*;
 
-const TILE_WIDTH: f32 = 32.0;
-const TILE_HEIGHT: f32 = 32.0;
-const TILE_SIZE: Vec2 = vec2(TILE_WIDTH, TILE_HEIGHT);
+use macroquad_tiled as tiled;
+
+const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
+
+pub struct Tile {
+    id: u32,
+    pub rect: Rect,
+    pub walkable: bool
+}
 
 pub struct Map {
     pub tilemap: tiled::Map,
-    pub colliders: Vec<Rect>
+    pub tiles: Vec<Tile>
 }
 
 impl Map {
@@ -21,48 +25,56 @@ impl Map {
                 &load_string(data_path).await.unwrap(),
                 &[("tileset.png", tex)], &[]
             ).unwrap(),
-            colliders: Vec::new()
+            tiles: Vec::new()
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.tiles.clear();
+
+        for layer in ["Base", "Props"] {
+            let map_layer = &self.tilemap.layers[layer];
+
+            for y in 0..map_layer.height {
+                for x in 0..map_layer.width {
+                    if let Some(tile) = &self.tilemap.get_tile(layer, x, y) {
+                        let world_pos = map_to_world(vec2(x as f32, y as f32));
+
+                        let tile = Tile {
+                            id: tile.id,
+                            rect: Rect::new(
+                                world_pos.x, world_pos.y,
+                                TILE_SIZE.x, TILE_SIZE.y
+                            ),
+                            walkable: layer == "Base"
+                        };
+                        self.tiles.push(tile);
+                    }
+                }
+            }
         }
     }
 
     pub fn draw(&mut self) {
-        self.draw_isometric_tiles("Base", false);
-        self.draw_isometric_tiles("Props", true);
-    }
+        for tile in &self.tiles {
+            let tile_offset = Rect::new(
+                tile.rect.x + 16.0, tile.rect.y + 16.0,
+                tile.rect.w, tile.rect.h
+            );
+            
+            tiled::Map::spr(
+                &self.tilemap,
+                "tileset",
+                tile.id,
+                tile_offset
+            );
 
-    fn draw_isometric_tiles(&mut self, layer: &str, collision: bool) {
-        let map_layer = &self.tilemap.layers[layer];
-    
-        for y in 0..map_layer.height {
-            for x in 0..map_layer.width {
-                if let Some(tile) = &self.tilemap.get_tile(layer, x, y) {
-                    let world_pos = map_to_world(vec2(x as f32, y as f32));
-    
-                    tiled::Map::spr(
-                        &self.tilemap,
-                        "tileset",
-                        tile.id,
-                        Rect::new(
-                            world_pos.x, world_pos.y,
-                            TILE_WIDTH, TILE_HEIGHT
-                        )
-                    );
-
-                    if collision {
-                        self.colliders.push(
-                            Rect::new(
-                                world_pos.x - 16.0, world_pos.y - 16.0,
-                                TILE_WIDTH, TILE_HEIGHT
-                            )
-                        );
-
-                        draw_rectangle_lines(
-                            world_pos.x, world_pos.y,
-                            TILE_WIDTH, TILE_HEIGHT, 2.0,
-                            RED
-                        );
-                    }
-                }
+            if !tile.walkable {
+                draw_rectangle_lines(
+                    tile_offset.x, tile_offset.y,
+                    tile_offset.w, tile_offset.h,
+                    2.0, RED
+                );
             }
         }
     }
