@@ -3,6 +3,7 @@ use animation::Animation;
 use map::*;
 use entity::*;
 
+pub const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
 const WOLF_TEX_PATH: &str = "assets/critters/wolf/wolf-all.png";
 
 pub struct World {
@@ -26,15 +27,15 @@ impl World {
             Animation { name: "walk_right".to_string(), row: 13, frames: 8, fps: 15 }
         ];
         let mut enemies = Vec::new();
-        
+
         for _ in 0..50 {
             enemies.push(
                 Entity::new(
                     rand::gen_range(-640.0, 640.0),
                     rand::gen_range(320.0, 1280.0),
-                    32.0, 32.0,
-                    WOLF_TEX_PATH,
-                    wolf_animations.clone()
+                    TILE_SIZE.x, TILE_SIZE.y,
+                    1.0,
+                    WOLF_TEX_PATH, wolf_animations.clone()
                 ).await
             )
         }
@@ -46,9 +47,10 @@ impl World {
                 screen_width(), -screen_height()
             )),
             player: Entity::new(
-                0.0, 640.0, 32.0, 32.0,
-                WOLF_TEX_PATH,
-                wolf_animations
+                0.0, 640.0,
+                TILE_SIZE.x, TILE_SIZE.y,
+                4.0,
+                WOLF_TEX_PATH, wolf_animations
             ).await,
             enemies,
             time: get_time()
@@ -67,7 +69,7 @@ impl World {
         self.player.update();
         self.player.keyboard_controller();
 
-        for tile in &self.map.chunks {
+        for tile in &self.map.chunk {
             if !tile.walkable {
                 if self.player.aabb(&tile.rect) {
                     println!("{}: Encountered a prop", get_time());
@@ -88,7 +90,7 @@ impl World {
                 break;
             }
             
-            for tile in &self.map.chunks {
+            for tile in &self.map.chunk {
                 if !tile.walkable {
                     if enemy.aabb(&tile.rect) {
                         println!("{}: Enemy encounted a prop", get_time());
@@ -112,40 +114,60 @@ impl World {
     pub fn draw(&mut self) {
         self.map.draw();
 
-        for tile in &self.map.chunks {
+        for tile in &self.map.chunk {
             if !tile.walkable {
                 draw_rectangle_lines(
-                    tile.rect.x + 16.0, tile.rect.y + 16.0,
+                    tile.rect.x + tile.rect.w / 2.0,
+                    tile.rect.y + tile.rect.h / 2.0,
                     tile.rect.w, tile.rect.h,
                     2.0, GREEN
                 );
             }
         }
 
-        self.player.draw(4.0);
+        self.player.draw();
         
         draw_rectangle_lines(
-            self.player.rect.x + 16.0, self.player.rect.y + 16.0,
-            32.0, 32.0, 2.0,
-            BLUE
+            self.player.rect.x + self.player.rect.w / 2.0,
+            self.player.rect.y + self.player.rect.h / 2.0,
+            self.player.rect.w, self.player.rect.h,
+            2.0, BLUE
         );
 
         set_camera(&self.camera);
         
         for enemy in &mut self.enemies {
-            if self.player.rect.x < enemy.rect.x + screen_width() / 4.0
-                && self.player.rect.x > enemy.rect.x - screen_width() / 4.0
-                && self.player.rect.y < enemy.rect.y + screen_height() / 4.0
-                && self.player.rect.y > enemy.rect.y - screen_height() / 4.0
+            if self.player.rect.x < enemy.rect.x + screen_width() / 2.0
+                && self.player.rect.x > enemy.rect.x - screen_width() / 2.0 + enemy.rect.w
+                && self.player.rect.y < enemy.rect.y + screen_height() / 2.0
+                && self.player.rect.y > enemy.rect.y - screen_height() / 2.0 + enemy.rect.h
             {
-                enemy.draw(1.0);
+                enemy.draw();
 
                 draw_rectangle_lines(
-                    enemy.rect.x + 16.0, enemy.rect.y + 16.0,
-                    32.0, 32.0, 2.0,
-                    RED
+                    enemy.rect.x + enemy.rect.w / 2.0,
+                    enemy.rect.y + enemy.rect.h / 2.0,
+                    enemy.rect.w, enemy.rect.h,
+                    2.0, RED
                 );
             }
         }
     }
+}
+
+pub fn world_to_map(world_pos: Vec2) -> Vec2 {
+    let ihat = vec2(0.5, 0.25) * TILE_SIZE;
+    let jhat = vec2(-0.5, 0.25) * TILE_SIZE;
+    let inverse = mat2(ihat, jhat).inverse();
+
+    inverse.mul_vec2(world_pos)
+}
+
+pub fn map_to_world(map_pos: Vec2) -> Vec2 {
+    let ihat = vec2(0.5, 0.25) * TILE_SIZE;
+    let jhat = vec2(-0.5, 0.25) * TILE_SIZE;
+    let transform = mat2(ihat, jhat);
+    let offset = vec2(-TILE_SIZE.x / 2.0, 0.0);
+
+    transform.mul_vec2(map_pos) + offset
 }

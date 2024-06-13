@@ -5,13 +5,15 @@ use animation::{AnimatedSprite, Animation};
 pub struct Entity {
     pub rect: Rect,
     tex: Texture2D,
+    pub velocity: Vec2,
+    pub speed: f32,
     sprite: AnimatedSprite,
-    pub velocity: Vec2
+    animation: usize,
 }
 
 impl Entity {
     pub async fn new(
-        x: f32, y: f32, w: f32, h: f32,
+        x: f32, y: f32, w: f32, h: f32, speed: f32,
         tex_path: &str, animations: Vec<Animation>
     ) -> Self {
         Self {
@@ -21,18 +23,20 @@ impl Entity {
                 64, 64,
                 &animations, true
             ),
-            velocity: vec2(0.0, 0.0)
+            speed,
+            animation: 0,
+            velocity: vec2(0.0, 0.0),
         }
     }
 
     pub fn update(&mut self) {
+        self.rect.x += self.velocity.x * self.speed;
+        self.rect.y += self.velocity.y * self.speed;
+
         self.sprite.update();
     }
     
-    pub fn draw(&mut self, speed: f32) {
-        self.rect.x += self.velocity.x * speed;
-        self.rect.y += self.velocity.y * speed;
-
+    pub fn draw(&mut self) {
         draw_texture_ex(
             &self.tex,
             self.rect.x, self.rect.y,
@@ -43,6 +47,8 @@ impl Entity {
                 ..Default::default()
             }
         );
+
+        self.sprite.set_animation(self.animation);
     }
 
     pub fn ai_controller(&mut self) {
@@ -59,7 +65,7 @@ impl Entity {
         };
 
         self.velocity = velocity;
-        self.sprite.set_animation(animation);
+        self.animation = animation;
     }
 
     pub fn keyboard_controller(&mut self) {
@@ -78,7 +84,7 @@ impl Entity {
         };
 
         self.velocity = velocity;
-        self.sprite.set_animation(animation);
+        self.animation = animation;
     }
 
     pub fn aabb(&mut self, rect: &Rect) -> bool {
