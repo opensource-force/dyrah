@@ -1,7 +1,8 @@
 use super::*;
-use animation::Animation;
 use map::*;
 use entity::*;
+
+use animation::Animation;
 
 pub const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
 const WOLF_TEX_PATH: &str = "assets/critters/wolf/wolf-all.png";
@@ -16,7 +17,7 @@ pub struct World {
 
 impl World {
     pub async fn new() -> Self {
-        let wolf_animations = vec![
+        let wolf_animations = &[
             Animation { name: "idle_up".to_string(), row: 11, frames: 8, fps: 5 },
             Animation { name: "idle_left".to_string(), row: 10, frames: 8, fps: 5 },
             Animation { name: "idle_down".to_string(), row: 8, frames: 8, fps: 5 },
@@ -29,15 +30,15 @@ impl World {
         let mut enemies = Vec::new();
 
         for _ in 0..50 {
-            enemies.push(
-                Entity::new(
+            enemies.push(Entity::new(
+                Rect::new(
                     rand::gen_range(-640.0, 640.0),
                     rand::gen_range(320.0, 1280.0),
-                    TILE_SIZE.x, TILE_SIZE.y,
-                    1.0,
-                    WOLF_TEX_PATH, wolf_animations.clone()
-                ).await
-            )
+                    TILE_SIZE.x, TILE_SIZE.y
+                ),
+                1.0,
+                WOLF_TEX_PATH, wolf_animations
+            ).await)
         }
 
         Self {
@@ -47,8 +48,7 @@ impl World {
                 screen_width(), -screen_height()
             )),
             player: Entity::new(
-                0.0, 640.0,
-                TILE_SIZE.x, TILE_SIZE.y,
+                Rect::new(0.0, 640.0, TILE_SIZE.x, TILE_SIZE.y),
                 4.0,
                 WOLF_TEX_PATH, wolf_animations
             ).await,
@@ -58,8 +58,6 @@ impl World {
     }
 
     pub fn update(&mut self) {
-        draw_text(&format!("FPS: {}", get_fps()), -25.0, 0.0, 30.0, BLUE);
-
         self.camera.target = vec2(
             self.player.rect.x + self.player.rect.w / 2.0,
             self.player.rect.y + self.player.rect.h / 2.0
@@ -102,7 +100,7 @@ impl World {
             }
         }
 
-        if get_time() - self.time > 1.0 {
+        if get_time() - self.time > 2.0 {
             for enemy in &mut self.enemies {
                 enemy.ai_controller();
             }
