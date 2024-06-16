@@ -53,10 +53,10 @@ impl Entity {
 
     pub fn ai_controller(&mut self) {
         (self.velocity, self.animation) = match rand::gen_range(0, 21) {
-            0 => (vec2(1.0, -1.0), 4),
-            1 => (vec2(-1.0, -1.0), 5),
-            2 => (vec2(-1.0, 1.0), 6),
-            3 => (vec2(1.0, 1.0), 7),
+            0 => (vec2(1.0, -0.5), 4),
+            1 => (vec2(-1.0, -0.5), 5),
+            2 => (vec2(-1.0, 0.5), 6),
+            3 => (vec2(1.0, 0.5), 7),
             _ => {
                 (Vec2::ZERO, match self.sprite.current_animation() {
                     4 => 0, 5 => 1, 6 => 2, 7 => 3, _ => return
@@ -67,13 +67,13 @@ impl Entity {
 
     pub fn keyboard_controller(&mut self) {
         (self.velocity, self.animation) = if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            (vec2(1.0, -1.0), 4)
+            (vec2(1.0, -0.5), 4)
         } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            (vec2(-1.0, -1.0), 5)
+            (vec2(-1.0, -0.5), 5)
         } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            (vec2(-1.0, 1.0), 6)
+            (vec2(-1.0, 0.5), 6)
         } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            (vec2(1.0, 1.0), 7)
+            (vec2(1.0, 0.5), 7)
         } else {
             (Vec2::ZERO, match self.sprite.current_animation() {
                 4 => 0, 5 => 1, 6 => 2, 7 => 3, _ => return
