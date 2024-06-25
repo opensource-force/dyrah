@@ -2,7 +2,15 @@
 name = "dyhra"
 version = "0.1.0"
 edition = "2021"
+license = "GPL3"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+repository = "https://github.com/wick3dr0se/dyhra"
 
 [dependencies]
 macroquad = "0.4.8"
 macroquad-tiled = "0.2.1"
+#egui = "0.27.2"
+#egui-wgpu = { version = "0.27.2", features = ["winit"] }
+#egui-winit = "0.27.2"
+#wgpu = "0.20.1"
+#winit = "0.30.2"

@@ -1,18 +1,14 @@
-use macroquad::prelude::*;
-
+mod engine;
 mod world;
-mod map;
-mod entity;
 
-use world::*;
+use macroquad::prelude::next_frame;
+use world::prelude::World;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
     let mut world = World::new().await;
 
     loop {
-        //clear_background(WHITE);
-
         world.update();
         world.draw();
 
