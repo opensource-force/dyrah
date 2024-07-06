@@ -1,16 +1,14 @@
-mod engine;
-mod world;
-
-use macroquad::prelude::next_frame;
-use world::prelude::World;
+use macroquad::window::next_frame;
+use dyhra::game::prelude::Game;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
-    let mut world = World::new().await;
+    let mut game = Game::new().await;
 
     loop {
-        world.update();
-        world.draw();
+        game.events();
+        game.update();
+        game.draw();
 
         next_frame().await;
     }
