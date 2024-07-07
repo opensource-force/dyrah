@@ -1,5 +1,5 @@
 use super::*;
-use map::{Map, TILE_SIZE};
+use map::{Map, TILE_OFFSET, TILE_SIZE};
 use systems::prelude::*;
 
 pub struct Game {
@@ -17,21 +17,21 @@ impl Game {
 
         world.spawn((
             Player,
-            Position(vec2(16.0, 16.0)),
+            Position(TILE_OFFSET),
             Velocity(Vec2::ZERO),
             Sprite {
                 texture: load_texture("assets/32rogues/rogues.png").await.unwrap(),
                 frame: ivec2(1, 4)
             },
             Moving(false),
-            TargetPosition(Vec2::ZERO)
+            TargetPosition(vec2(TILE_OFFSET.x, TILE_OFFSET.y))
         ));
         
         let monsters = (0..99).map(|_| {(
             Monster,
             Position(vec2(
-                rand::gen_range(0.0, 64.0 * TILE_SIZE.x),
-                rand::gen_range(0.0, 64.0 * TILE_SIZE.y)
+                rand::gen_range(16.0, 64.0 * TILE_SIZE.x),
+                rand::gen_range(16.0, 64.0 * TILE_SIZE.y)
             )),
             Velocity(Vec2::ZERO),
             Sprite {
@@ -57,24 +57,26 @@ impl Game {
     }
 
     pub fn events(&mut self) {
-        InputSystem::handle_player(&mut self.world);
-        InputSystem::handle_monsters(&mut self.world);
+        InputSystem::keyboard_controller::<Player>(&mut self.world);
+        InputSystem::mouse_controller::<Player>(&mut self.world, &self.map, &self.camera);
+        InputSystem::ai_controller::<Monster>(&mut self.world);
         InputSystem::update(&mut self.world, &self.map);
     }
 
     pub fn update(&mut self) {
-        clear_background(SKYBLUE);
-        
         MovementSystem::handle_player(&mut self.world, &mut self.map, &mut self.camera);
         MovementSystem::update(&mut self.world);
     }
 
     pub fn draw(&mut self) {
+        clear_background(SKYBLUE);
         self.map.draw();
 
         RenderSystem::draw_entities(&mut self.world);
-        UiSystem::statistics(&mut self.world);
+        RenderSystem::debug(&mut self.world, &self.camera);
 
         set_camera(&self.camera);
+
+
     }
 }

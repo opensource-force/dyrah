@@ -12,11 +12,10 @@ impl MovementSystem {
                     moving.0 = false;
                 } else {
                     vel.0 = (target.0 - pos.0).normalize();
+                    pos.0.x += vel.0.x;
+                    pos.0.y += vel.0.y;
                 }
             }
-
-            pos.0.x += vel.0.x;
-            pos.0.y += vel.0.y;
         }
     }
 
