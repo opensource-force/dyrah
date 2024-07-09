@@ -3,23 +3,41 @@ use super::*;
 pub struct MovementSystem;
 
 impl MovementSystem {
-    pub fn update(world: &mut World) {
+    pub fn update(world: &mut World, map: &mut Map, camera: &mut Camera2D) {
         for (_, (pos, vel, moving, target)) in world.query_mut::<(
             &mut Position, &mut Velocity, &mut Moving, &mut TargetPosition
         )>() {
+            if let Some(tile) = map.get_tile(target.0) {
+                if tile.walkable {
+                    moving.0 = true;
+                    target.0 = tile.rect.center();
+                }
+            } else {
+                moving.0 = false;
+            }
+
             if moving.0 {
                 if pos.0 == target.0 {
                     moving.0 = false;
                 } else {
-                    vel.0 = (target.0 - pos.0).normalize();
-                    pos.0.x += vel.0.x;
-                    pos.0.y += vel.0.y;
+                    let direction = target.0 - pos.0;
+                    let dx = direction.x.abs();
+                    let dy = direction.y.abs();
+                    vel.0 = direction.signum();
+
+                    if pos.0.abs_diff_eq(target.0, 1.0) {
+                        pos.0 = target.0;
+                    } else if dx > dy {
+                        pos.0.x += vel.0.x;
+                    } else if dy > dx {
+                        pos.0.y += vel.0.y;
+                    } else {
+                        pos.0 += vel.0;
+                    }
                 }
             }
         }
-    }
 
-    pub fn handle_player(world: &mut World, map: &mut Map, camera: &mut Camera2D) {
         for (_, pos) in world.query_mut::<&Position>().with::<&Player>() {
             storage::store(PlayerView(Rect::new(
                 pos.0.x - screen_width() / 2.0 - TILE_SIZE.x,

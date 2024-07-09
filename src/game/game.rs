@@ -58,14 +58,12 @@ impl Game {
 
     pub fn events(&mut self) {
         InputSystem::keyboard_controller::<Player>(&mut self.world);
-        InputSystem::mouse_controller::<Player>(&mut self.world, &self.map, &self.camera);
+        InputSystem::mouse_controller::<Player>(&mut self.world, &self.camera);
         InputSystem::ai_controller::<Monster>(&mut self.world);
-        InputSystem::update(&mut self.world, &self.map);
     }
 
     pub fn update(&mut self) {
-        MovementSystem::handle_player(&mut self.world, &mut self.map, &mut self.camera);
-        MovementSystem::update(&mut self.world);
+        MovementSystem::update(&mut self.world, &mut self.map, &mut self.camera);
     }
 
     pub fn draw(&mut self) {
@@ -76,7 +74,5 @@ impl Game {
         RenderSystem::debug(&mut self.world, &self.camera);
 
         set_camera(&self.camera);
-
-
     }
 }
