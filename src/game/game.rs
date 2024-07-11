@@ -24,7 +24,9 @@ impl Game {
                 frame: ivec2(1, 4)
             },
             Moving(false),
-            TargetPosition(vec2(TILE_OFFSET.x, TILE_OFFSET.y))
+            TargetPosition(vec2(TILE_OFFSET.x, TILE_OFFSET.y)),
+            Health(100.0),
+            Target(None)
         ));
         
         let monsters = (0..99).map(|_| {(
@@ -42,7 +44,9 @@ impl Game {
                 )
             },
             Moving(false),
-            TargetPosition(Vec2::ZERO)
+            TargetPosition(Vec2::ZERO),
+            Health(rand::gen_range(50.0, 80.0)),
+            Target(None)
         )});
 
         world.spawn_batch(monsters);
@@ -72,6 +76,19 @@ impl Game {
 
         RenderSystem::draw_entities(&mut self.world);
         RenderSystem::debug(&mut self.world, &self.camera);
+
+        for (_, target) in self.world.query::<&Target>().with::<&Player>().iter() {
+            if let Some(monster) = target.0 {
+                if let Ok(pos) = self.world.get::<&Position>(monster) {
+                    draw_rectangle_lines(
+                        pos.0.x - TILE_OFFSET.x,
+                        pos.0.y - TILE_OFFSET.y,
+                        TILE_SIZE.x, TILE_SIZE.y,
+                        2.0, PURPLE
+                    );
+                }
+            }
+        }
 
         set_camera(&self.camera);
     }

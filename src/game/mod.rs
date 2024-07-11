@@ -27,3 +27,5 @@ pub struct Sprite {
 }
 pub struct Moving(pub bool);
 pub struct TargetPosition(pub Vec2);
+pub struct Health(pub f32);
+pub struct Target(pub Option<Entity>);

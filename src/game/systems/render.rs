@@ -5,10 +5,9 @@ pub struct RenderSystem;
 
 impl RenderSystem {
     pub fn draw_entities(world: &mut World) {
-        for (_, (pos, sprite)) in world.query_mut::<(
-            &Position, &Sprite
-        )>() {
-            draw_texture_ex(&sprite.texture,
+        for (_, (pos, sprite, health)) in world.query_mut::<(&Position, &Sprite, &Health)>() {
+            draw_texture_ex(
+                &sprite.texture,
                 pos.0.x - TILE_OFFSET.x,
                 pos.0.y - TILE_OFFSET.y,
                 WHITE,
@@ -16,16 +15,26 @@ impl RenderSystem {
                     source: Some(Rect::new(
                         (sprite.frame.x as f32) * TILE_SIZE.x,
                         (sprite.frame.y as f32) * TILE_SIZE.y,
-                        TILE_SIZE.x, TILE_SIZE.y
+                        TILE_SIZE.x,
+                        TILE_SIZE.y,
                     )),
                     ..Default::default()
-                }
+                },
+            );
+    
+            draw_rectangle(
+                pos.0.x - TILE_SIZE.x / 2.0,
+                pos.0.y - 20.0,
+                TILE_SIZE.x * (health.0 / 100.0),
+                4.0,
+                RED,
             );
         }
     }
+    
 
     pub fn debug(world: &mut World, camera: &Camera2D) {
-        for (_, (pos, target)) in world.query_mut::<(
+        for (_, (pos, target_pos)) in world.query_mut::<(
             &Position, &TargetPosition
         )>().with::<&Player>() {
             let tile_pos = (pos.0 / TILE_SIZE).floor();
@@ -34,7 +43,7 @@ impl RenderSystem {
             root_ui().label(None, &format!("Map Position: ({:.1}, {:.1})", pos.0.x, pos.0.y));    
             root_ui().label(None, &format!("Tile Position: ({}, {})", tile_pos.x, tile_pos.y));
             root_ui().label(None, &format!("Mouse Position: ({:.1}, {:.1})", mouse_pos.x, mouse_pos.y));
-            root_ui().label(None, &format!("Target Position: ({}, {})", target.0.x, target.0.y));
+            root_ui().label(None, &format!("Target Position: ({}, {})", target_pos.0.x, target_pos.0.y));
             root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
 
             draw_rectangle_lines(
@@ -52,8 +61,8 @@ impl RenderSystem {
             );
 
             draw_rectangle_lines(
-                target.0.x - TILE_OFFSET.x,
-                target.0.y - TILE_OFFSET.y,
+                target_pos.0.x - TILE_OFFSET.x,
+                target_pos.0.y - TILE_OFFSET.y,
                 TILE_SIZE.x, TILE_SIZE.y,
                 2.0, ORANGE
             );
