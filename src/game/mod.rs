@@ -7,25 +7,28 @@ pub mod prelude {
     pub use super::map::*;
 }
 
-use super::*;
-use collections::storage;
+use macroquad::prelude::*;
+use shipyard::*;
 
-// collections
-pub struct WorldTime(f64);
-pub struct PlayerView(Rect);
+#[derive(Unique)]
+pub struct Camera(Camera2D);
 
-
-// components
-pub struct Player;
-pub struct Monster;
-
-pub struct Position(pub Vec2);
-pub struct Velocity(pub Vec2);
+#[derive(Component)]
+pub struct Position(Vec2);
+#[derive(Component)]
+pub struct Velocity(Vec2);
+#[derive(Component)]
 pub struct Sprite {
-    pub texture: Texture2D,
-    pub frame: IVec2
+    tex: Texture2D,
+    frame: IVec2
 }
-pub struct Moving(pub bool);
-pub struct TargetPosition(pub Vec2);
-pub struct Health(pub f32);
-pub struct Target(pub Option<Entity>);
+
+#[derive(Unique)]
+pub struct Player {
+    pos: Position,
+    vel: Velocity,
+    spr: Sprite
+}
+
+#[derive(Component)]
+pub struct Monster;

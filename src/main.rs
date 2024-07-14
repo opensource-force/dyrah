@@ -1,5 +1,5 @@
-use macroquad::window::next_frame;
 use dyhra::game::prelude::Game;
+use macroquad::prelude::*;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
@@ -9,7 +9,6 @@ async fn main() {
         game.events();
         game.update();
         game.draw();
-
         next_frame().await;
     }
 }

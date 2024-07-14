@@ -1,95 +1,74 @@
 use super::*;
-use map::{Map, TILE_OFFSET, TILE_SIZE};
 use systems::prelude::*;
+use map::{Map, TILE_SIZE};
 
 pub struct Game {
     world: World,
-    map: Map,
-    camera: Camera2D
+    map: Map
 }
 
 impl Game {
     pub async fn new() -> Self {
-        storage::store(WorldTime(get_time()));
-
         let mut world = World::new();
         let monster_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
-        world.spawn((
-            Player,
-            Position(TILE_OFFSET),
-            Velocity(Vec2::ZERO),
-            Sprite {
-                texture: load_texture("assets/32rogues/rogues.png").await.unwrap(),
+        let _player_id = world.add_unique(Player {
+            pos: Position(vec2(0.0, 0.0)),
+            vel: Velocity(Vec2::ZERO),
+            spr: Sprite {
+                tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
                 frame: ivec2(1, 4)
-            },
-            Moving(false),
-            TargetPosition(vec2(TILE_OFFSET.x, TILE_OFFSET.y)),
-            Health(100.0),
-            Target(None)
-        ));
-        
-        let monsters = (0..99).map(|_| {(
+            }
+        });
+        let _monster_ids = world.bulk_add_entity((0..999).map(|_| (
             Monster,
             Position(vec2(
-                rand::gen_range(16.0, 64.0 * TILE_SIZE.x),
-                rand::gen_range(16.0, 64.0 * TILE_SIZE.y)
+                rand::gen_range(0.0, 64.0 * TILE_SIZE.x),
+                rand::gen_range(0.0, 64.0 * TILE_SIZE.y)
             )),
-            Velocity(Vec2::ZERO),
             Sprite {
-                texture: monster_tex.clone(),
-                frame: ivec2(
-                    rand::gen_range(0, 1),
-                    rand::gen_range(0, 7)
-                )
-            },
-            Moving(false),
-            TargetPosition(Vec2::ZERO),
-            Health(rand::gen_range(50.0, 80.0)),
-            Target(None)
-        )});
+                tex: monster_tex.clone(),
+                frame: ivec2(rand::gen_range(0, 1), rand::gen_range(0, 7))
+            }
+        )));
 
-        world.spawn_batch(monsters);
+        world.add_unique(Camera(Camera2D::from_display_rect(Rect::new(
+            0.0, 0.0, screen_width(), -screen_height()
+        ))));
 
         Self {
             world,
-            map: Map::new("assets/map.json", "assets/tiles.png").await,
-            camera: Camera2D::from_display_rect(Rect::new(
-                0.0, 0.0, screen_width(), -screen_height()
-            ))
+            map: Map::new("assets/map.json", "assets/tiles.png").await
         }
     }
 
-    pub fn events(&mut self) {
-        InputSystem::keyboard_controller::<Player>(&mut self.world);
-        InputSystem::mouse_controller::<Player>(&mut self.world, &self.camera);
-        InputSystem::ai_controller::<Monster>(&mut self.world);
+    pub fn events(&self) {
+        self.world.run(InputSystem::control_player);
     }
 
     pub fn update(&mut self) {
-        MovementSystem::update(&mut self.world, &mut self.map, &mut self.camera);
+        self.world.run(MovementSystem::update);
+
+        if let Ok(player) = self.world.get_unique::<&Player>() {
+            let mut camera = self.world.get_unique::<&mut Camera>().unwrap();
+            camera.0.target = player.pos.0;
+            self.map.update(Rect::new(
+                player.pos.0.x - screen_width() / 2.0 - TILE_SIZE.x,
+                player.pos.0.y - screen_height() / 2.0 - TILE_SIZE.y,
+                screen_width() + TILE_SIZE.x,
+                screen_height() + TILE_SIZE.y
+            ));
+        }
     }
 
     pub fn draw(&mut self) {
         clear_background(SKYBLUE);
+
         self.map.draw();
+        self.world.run(RenderSystem::draw_entities);
 
-        RenderSystem::draw_entities(&mut self.world);
-        RenderSystem::debug(&mut self.world, &self.camera);
-
-        for (_, target) in self.world.query::<&Target>().with::<&Player>().iter() {
-            if let Some(monster) = target.0 {
-                if let Ok(pos) = self.world.get::<&Position>(monster) {
-                    draw_rectangle_lines(
-                        pos.0.x - TILE_OFFSET.x,
-                        pos.0.y - TILE_OFFSET.y,
-                        TILE_SIZE.x, TILE_SIZE.y,
-                        2.0, PURPLE
-                    );
-                }
-            }
+        if let Ok(camera) = self.world.get_unique::<&Camera>() {
+            set_camera(&camera.0);
         }
-
-        set_camera(&self.camera);
     }
 }

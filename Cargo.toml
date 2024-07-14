@@ -9,7 +9,7 @@ repository = "https://github.com/wick3dr0se/dyhra"
 [dependencies]
 macroquad = "0.4.8"
 macroquad-tiled = "0.2.1"
-hecs = "0.10.5"
+shipyard = "0.7.0"
 #egui = "0.27.2"
 #egui-wgpu = { version = "0.27.2", features = ["winit"] }
 #egui-winit = "0.27.2"

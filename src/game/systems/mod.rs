@@ -8,5 +8,6 @@ pub mod prelude {
     pub use super::movement::*;
 }
 
-use super::*;
-use map::*;
+use macroquad::prelude::*;
+use shipyard::*;
+use crate::game::prelude::*;
