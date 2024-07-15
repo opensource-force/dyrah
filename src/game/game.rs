@@ -1,4 +1,5 @@
 use super::*;
+use collections::storage;
 use systems::prelude::*;
 use map::{Map, TILE_SIZE};
 
@@ -10,22 +11,26 @@ pub struct Game {
 impl Game {
     pub async fn new() -> Self {
         let mut world = World::new();
+        storage::store(WorldTime(get_time()));
         let monster_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
         let _player_id = world.add_unique(Player {
-            pos: Position(vec2(0.0, 0.0)),
+            pos: Position(Vec2::ZERO),
             vel: Velocity(Vec2::ZERO),
             spr: Sprite {
                 tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
                 frame: ivec2(1, 4)
-            }
+            },
+            moving: Moving(false),
+            target_pos: TargetPosition(Vec2::ZERO)
         });
-        let _monster_ids = world.bulk_add_entity((0..999).map(|_| (
+        let _monster_ids = world.bulk_add_entity((0..199).map(|_| (
             Monster,
             Position(vec2(
                 rand::gen_range(0.0, 64.0 * TILE_SIZE.x),
                 rand::gen_range(0.0, 64.0 * TILE_SIZE.y)
             )),
+            Velocity(Vec2::ZERO),
             Sprite {
                 tex: monster_tex.clone(),
                 frame: ivec2(rand::gen_range(0, 1), rand::gen_range(0, 7))
@@ -44,14 +49,23 @@ impl Game {
 
     pub fn events(&self) {
         self.world.run(InputSystem::control_player);
+        self.world.run(AiSystem::control_monsters);
     }
 
     pub fn update(&mut self) {
-        self.world.run(MovementSystem::update);
+        if let Ok(mut player) = self.world.get_unique::<&mut Player>() {
+            if let Some(tile) = self.map.get_tile(player.target_pos.0) {
+                if tile.walkable {
+                    player.moving.0 = true;
+                    player.target_pos.0 = tile.rect.center();
+                }
+            } else {
+                player.moving.0 = false;
+            }
 
-        if let Ok(player) = self.world.get_unique::<&Player>() {
             let mut camera = self.world.get_unique::<&mut Camera>().unwrap();
             camera.0.target = player.pos.0;
+
             self.map.update(Rect::new(
                 player.pos.0.x - screen_width() / 2.0 - TILE_SIZE.x,
                 player.pos.0.y - screen_height() / 2.0 - TILE_SIZE.y,
@@ -59,6 +73,8 @@ impl Game {
                 screen_height() + TILE_SIZE.y
             ));
         }
+
+        self.world.run(MovementSystem::update);
     }
 
     pub fn draw(&mut self) {
@@ -70,5 +86,7 @@ impl Game {
         if let Ok(camera) = self.world.get_unique::<&Camera>() {
             set_camera(&camera.0);
         }
+
+        self.world.run(RenderSystem::debug);
     }
 }

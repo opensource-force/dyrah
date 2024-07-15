@@ -16,5 +16,9 @@ impl InputSystem {
         } else {
             Vec2::ZERO
         };
+
+        if player.vel.0 != Vec2::ZERO {
+            player.target_pos.0 = player.pos.0 + player.vel.0 * TILE_SIZE;
+        }
     }
 }

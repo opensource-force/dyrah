@@ -10,6 +10,8 @@ pub mod prelude {
 use macroquad::prelude::*;
 use shipyard::*;
 
+pub struct WorldTime(f64);
+
 #[derive(Unique)]
 pub struct Camera(Camera2D);
 
@@ -22,12 +24,18 @@ pub struct Sprite {
     tex: Texture2D,
     frame: IVec2
 }
+#[derive(Component)]
+pub struct Moving(bool);
+#[derive(Component)]
+pub struct TargetPosition(Vec2);
 
 #[derive(Unique)]
 pub struct Player {
     pos: Position,
     vel: Velocity,
-    spr: Sprite
+    spr: Sprite,
+    moving: Moving,
+    target_pos: TargetPosition
 }
 
 #[derive(Component)]
