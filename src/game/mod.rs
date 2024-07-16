@@ -28,6 +28,8 @@ pub struct Sprite {
 pub struct Moving(bool);
 #[derive(Component)]
 pub struct TargetPosition(Vec2);
+#[derive(Component)]
+pub struct Target(Option<EntityId>);
 
 #[derive(Unique)]
 pub struct Player {
@@ -35,7 +37,8 @@ pub struct Player {
     vel: Velocity,
     spr: Sprite,
     moving: Moving,
-    target_pos: TargetPosition
+    target_pos: TargetPosition,
+    target: Target
 }
 
 #[derive(Component)]

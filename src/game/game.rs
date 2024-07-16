@@ -1,7 +1,7 @@
 use super::*;
 use collections::storage;
 use systems::prelude::*;
-use map::{Map, TILE_SIZE};
+use map::{Map, TILE_OFFSET, TILE_SIZE};
 
 pub struct Game {
     world: World,
@@ -22,7 +22,8 @@ impl Game {
                 frame: ivec2(1, 4)
             },
             moving: Moving(false),
-            target_pos: TargetPosition(Vec2::ZERO)
+            target_pos: TargetPosition(Vec2::ZERO),
+            target: Target(None)
         });
         let _monster_ids = world.bulk_add_entity((0..199).map(|_| (
             Monster,
@@ -88,5 +89,17 @@ impl Game {
         }
 
         self.world.run(RenderSystem::debug);
+
+        if let Ok(player) = self.world.get_unique::<&Player>() {
+            if let Some(target) = player.target.0 {
+                let monster_pos = self.world.get::<&Position>(target).unwrap();
+                
+                draw_rectangle_lines(
+                    monster_pos.0.x - TILE_OFFSET.x, monster_pos.0.y - TILE_OFFSET.y,
+                    TILE_SIZE.x, TILE_SIZE.y,
+                    2.0, PURPLE
+                )
+            }
+        }
     }
 }
