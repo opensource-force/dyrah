@@ -30,6 +30,12 @@ pub struct Moving(bool);
 pub struct TargetPosition(Vec2);
 #[derive(Component)]
 pub struct Target(Option<EntityId>);
+#[derive(Component)]
+pub struct Health(f32);
+#[derive(Component)]
+pub struct Damage(f32);
+#[derive(Component)]
+pub struct Dead(Option<EntityId>);
 
 #[derive(Unique)]
 pub struct Player {
@@ -38,7 +44,9 @@ pub struct Player {
     spr: Sprite,
     moving: Moving,
     target_pos: TargetPosition,
-    target: Target
+    target: Target,
+    health: Health,
+    damage: Damage
 }
 
 #[derive(Component)]

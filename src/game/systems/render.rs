@@ -1,6 +1,6 @@
 use super::*;
 use macroquad::ui::root_ui;
-use crate::game::{Player, Position, Sprite, Camera};
+use crate::game::{Camera, Health, Player, Position, Sprite};
 
 pub struct RenderSystem;
 
@@ -8,7 +8,8 @@ impl RenderSystem {
     pub fn draw_entities(
         player: UniqueView<Player>,
         positions: View<Position>,
-        sprites: View<Sprite>
+        sprites: View<Sprite>,
+        healths: View<Health>
     ) {
         draw_texture_ex(
             &player.spr.tex,
@@ -25,7 +26,7 @@ impl RenderSystem {
             }
         );
 
-        for (pos, sprite) in (&positions, &sprites).iter() {
+        for (pos, sprite, health) in (&positions, &sprites, &healths).iter() {
             draw_texture_ex(
                 &sprite.tex,
                 pos.0.x - TILE_OFFSET.x,
@@ -39,6 +40,24 @@ impl RenderSystem {
                     )),
                     ..Default::default()
                 },
+            );
+
+            let health_bar_width = (TILE_SIZE.x * health.0 / 50.0).clamp(0.0, TILE_SIZE.x);
+    
+            draw_rectangle(
+                pos.0.x - TILE_OFFSET.x,
+                pos.0.y - 20.0,
+                TILE_SIZE.x,
+                4.0,
+                DARKGRAY,
+            );
+    
+            draw_rectangle(
+                pos.0.x - TILE_OFFSET.x,
+                pos.0.y - 20.0,
+                health_bar_width,
+                4.0,
+                GREEN,
             );
         }
     }

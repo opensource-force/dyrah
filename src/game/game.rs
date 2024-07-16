@@ -14,7 +14,7 @@ impl Game {
         storage::store(WorldTime(get_time()));
         let monster_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
-        let _player_id = world.add_unique(Player {
+        world.add_unique(Player {
             pos: Position(Vec2::ZERO),
             vel: Velocity(Vec2::ZERO),
             spr: Sprite {
@@ -23,8 +23,11 @@ impl Game {
             },
             moving: Moving(false),
             target_pos: TargetPosition(Vec2::ZERO),
-            target: Target(None)
+            target: Target(None),
+            health: Health(100.0),
+            damage: Damage(5.0)
         });
+
         let _monster_ids = world.bulk_add_entity((0..199).map(|_| (
             Monster,
             Position(vec2(
@@ -35,13 +38,14 @@ impl Game {
             Sprite {
                 tex: monster_tex.clone(),
                 frame: ivec2(rand::gen_range(0, 1), rand::gen_range(0, 7))
-            }
+            },
+            Health(50.0)
         )));
 
         world.add_unique(Camera(Camera2D::from_display_rect(Rect::new(
             0.0, 0.0, screen_width(), -screen_height()
         ))));
-
+        
         Self {
             world,
             map: Map::new("assets/map.json", "assets/tiles.png").await
@@ -76,6 +80,13 @@ impl Game {
         }
 
         self.world.run(MovementSystem::update);
+
+        if let Ok(player) = self.world.get_unique::<&Player>() {
+            if let Some(target) = player.target.0 {
+                let mut monster_health = self.world.get::<&mut Health>(target).unwrap();
+                monster_health.0 -= player.damage.0;
+            }
+        }
     }
 
     pub fn draw(&mut self) {
@@ -93,12 +104,12 @@ impl Game {
         if let Ok(player) = self.world.get_unique::<&Player>() {
             if let Some(target) = player.target.0 {
                 let monster_pos = self.world.get::<&Position>(target).unwrap();
-                
                 draw_rectangle_lines(
-                    monster_pos.0.x - TILE_OFFSET.x, monster_pos.0.y - TILE_OFFSET.y,
+                    monster_pos.0.x - TILE_OFFSET.x,
+                    monster_pos.0.y - TILE_OFFSET.y,
                     TILE_SIZE.x, TILE_SIZE.y,
                     2.0, PURPLE
-                )
+                );
             }
         }
     }
