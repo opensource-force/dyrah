@@ -1,6 +1,6 @@
-mod systems;
 mod game;
 mod map;
+mod systems;
 
 pub mod prelude {
     pub use super::game::*;
@@ -22,14 +22,14 @@ pub struct Velocity(Vec2);
 #[derive(Component)]
 pub struct Sprite {
     tex: Texture2D,
-    frame: IVec2
+    frame: IVec2,
 }
 #[derive(Component)]
 pub struct Moving(bool);
 #[derive(Component)]
 pub struct TargetPosition(Vec2);
 #[derive(Component)]
-pub struct Target(Option<EntityId>);
+pub struct Target(EntityId);
 #[derive(Component)]
 pub struct Health(f32);
 #[derive(Component)]
@@ -38,16 +38,7 @@ pub struct Damage(f32);
 pub struct Dead(Option<EntityId>);
 
 #[derive(Unique)]
-pub struct Player {
-    pos: Position,
-    vel: Velocity,
-    spr: Sprite,
-    moving: Moving,
-    target_pos: TargetPosition,
-    target: Target,
-    health: Health,
-    damage: Damage
-}
+pub struct Player(EntityId);
 
 #[derive(Component)]
 pub struct Monster;
