@@ -74,12 +74,14 @@ https://docs.rs/macroquad-tiled/latest/macroquad_tiled/
 ### Shipyard
 tutorial  
 https://leudz.github.io/shipyard/guide/0.7/welcome.html
+https://tung.github.io/ruggrogue/source-code-guide/
 
 docs  
 https://docs.rs/shipyard/latest/shipyard/
 
 examples  
 https://github.com/tung/ruggrogue
+https://github.com/griffi-gh/kubi
 
 ### Tiled
 map editor tutorial  
