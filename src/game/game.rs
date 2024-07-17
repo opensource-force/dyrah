@@ -53,11 +53,11 @@ impl Game {
         self.0.run_workload(Workloads::events).unwrap();
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&self) {
         self.0.run_workload(Workloads::update).unwrap();
     }
 
-    pub fn draw(&mut self) {
+    pub fn draw(&self) {
         self.0.run_workload(Workloads::draw).unwrap();
     }
 }
