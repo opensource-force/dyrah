@@ -7,12 +7,13 @@ pub const TILE_OFFSET: Vec2 = vec2(16.0, 16.0);
 pub struct Tile {
     id: u32,
     pub rect: Rect,
-    pub walkable: bool
+    pub walkable: bool,
 }
 
+#[derive(Unique)]
 pub struct Map {
     tiled: tiled::Map,
-    pub chunk: Vec<Tile>
+    pub chunk: Vec<Tile>,
 }
 
 impl Map {
@@ -20,9 +21,11 @@ impl Map {
         Self {
             tiled: tiled::load_map(
                 &load_string(data_path).await.unwrap(),
-                &[("tiles.png", load_texture(tex_path).await.unwrap())], &[]
-            ).unwrap(),
-            chunk: Vec::new()
+                &[("tiles.png", load_texture(tex_path).await.unwrap())],
+                &[],
+            )
+            .unwrap(),
+            chunk: Vec::new(),
         }
     }
 
@@ -38,11 +41,8 @@ impl Map {
                         if bounds.contains(world_pos) {
                             self.chunk.push(Tile {
                                 id: tile.id,
-                                rect: Rect::new(
-                                    world_pos.x, world_pos.y,
-                                    TILE_SIZE.x, TILE_SIZE.y
-                                ),
-                                walkable: layer_name != "colliders"
+                                rect: Rect::new(world_pos.x, world_pos.y, TILE_SIZE.x, TILE_SIZE.y),
+                                walkable: layer_name != "colliders",
                             })
                         }
                     }
@@ -53,19 +53,21 @@ impl Map {
 
     pub fn draw(&mut self) {
         for tile in &self.chunk {
-            self.tiled.spr("tiles", tile.id, Rect::new(
-                tile.rect.x, tile.rect.y, tile.rect.w, tile.rect.h
-            ))
+            self.tiled.spr(
+                "tiles",
+                tile.id,
+                Rect::new(tile.rect.x, tile.rect.y, tile.rect.w, tile.rect.h),
+            )
         }
     }
 
     pub fn get_tile(&self, pos: Vec2) -> Option<&Tile> {
         for tile in &self.chunk {
             if tile.rect.contains(pos) {
-                return Some(&tile)
+                return Some(&tile);
             }
         }
 
-        return None
+        return None;
     }
 }
