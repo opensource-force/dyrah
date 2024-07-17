@@ -35,6 +35,8 @@ impl Game {
                 tex: monster_tex.clone(),
                 frame: ivec2(rand::gen_range(0, 1), rand::gen_range(0, 7)),
             },
+            Moving(false),
+            TargetPosition(Vec2::ZERO),
             Health(50.0)
         )}));
 

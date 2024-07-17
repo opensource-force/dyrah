@@ -53,7 +53,6 @@ impl Workloads {
     
     pub fn update() -> Workload {
         (
-            MovementSystem::move_player,
             MovementSystem::update,
             DamageSystem::attack_target
         ).into_workload()
