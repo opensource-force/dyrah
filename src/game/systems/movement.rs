@@ -1,18 +1,18 @@
 use super::*;
-use crate::game::{Moving, Player, Position, TargetPosition, Velocity, Camera};
+use crate::game::{Moving, Player, Position, TargetPosition, Velocity};
 
 pub struct MovementSystem;
 
 impl MovementSystem {
     pub fn update(
         player: UniqueView<Player>,
-        mut positions: ViewMut<Position>,
-        velocities: View<Velocity>,
+        mut pos: ViewMut<Position>,
+        vel: View<Velocity>,
         mut moving: ViewMut<Moving>,
-        target_positions: View<TargetPosition>,
+        target_pos: View<TargetPosition>,
     ) {
-        let player_pos = &mut positions[player.0];
-        let player_target_pos = &target_positions[player.0];
+        let player_pos = &mut pos[player.0];
+        let player_target_pos = &target_pos[player.0];
 
         if moving[player.0].0 {
             if player_pos.0 == player_target_pos.0 {
@@ -35,7 +35,7 @@ impl MovementSystem {
             }
         }
 
-        for (pos, vel) in (&mut positions, &velocities).iter() {
+        for (pos, vel) in (&mut pos, &vel).iter() {
             pos.0 += vel.0;
         }
     }
@@ -43,7 +43,7 @@ impl MovementSystem {
     pub fn move_player(
         player: UniqueView<Player>,
         mut map: UniqueViewMut<Map>,
-        mut camera: UniqueViewMut<Camera>,
+        mut camera: UniqueViewMut<Viewport>,
         mut moving: ViewMut<Moving>,
         mut target_pos: ViewMut<TargetPosition>,
         pos: View<Position>,
@@ -57,13 +57,12 @@ impl MovementSystem {
             moving[player.0].0 = false;
         }
 
-        camera.0.target = pos[player.0].0;
-
         map.update(Rect::new(
             pos[player.0].0.x - screen_width() / 2.0 - TILE_SIZE.x,
             pos[player.0].0.y - screen_height() / 2.0 - TILE_SIZE.y,
             screen_width() + TILE_SIZE.x,
             screen_height() + TILE_SIZE.y,
         ));
+        camera.update(pos[player.0].0);
     }
 }

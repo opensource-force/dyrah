@@ -1,19 +1,19 @@
 mod game;
 mod map;
+mod camera;
 mod systems;
 
 pub mod prelude {
     pub use super::game::*;
     pub use super::map::*;
+    pub use super::camera::*;
 }
 
 use macroquad::prelude::*;
 use shipyard::*;
+use systems::prelude::*;
 
 pub struct WorldTime(f64);
-
-#[derive(Unique)]
-pub struct Camera(Camera2D);
 
 #[derive(Component)]
 pub struct Position(Vec2);
@@ -41,8 +41,6 @@ pub struct Player(EntityId);
 #[derive(Component)]
 pub struct Monster;
 
-use systems::prelude::*;
-
 pub struct Workloads;
 
 impl Workloads {
@@ -66,7 +64,7 @@ impl Workloads {
             |_: AllStoragesViewMut| clear_background(SKYBLUE),
             RenderSystem::draw_map,
             RenderSystem::draw_entities,
-            RenderSystem::set_camera,
+            RenderSystem::draw_camera,
             RenderSystem::debug,
             RenderSystem::draw_player_target
         ).into_workload()

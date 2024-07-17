@@ -1,20 +1,20 @@
 use super::*;
-use crate::game::{Camera, Player, Position, Target, TargetPosition, Velocity};
+use crate::game::{Player, Position, Target, TargetPosition, Velocity};
 
 pub struct InputSystem;
 
 impl InputSystem {
     pub fn control_player(
         player: UniqueView<Player>,
-        positions: View<Position>,
-        camera: UniqueView<Camera>,
-        mut velocities: ViewMut<Velocity>,
-        mut targets: ViewMut<Target>,
-        mut target_positions: ViewMut<TargetPosition>,
+        pos: View<Position>,
+        camera: UniqueView<Viewport>,
+        mut vel: ViewMut<Velocity>,
+        mut target: ViewMut<Target>,
+        mut target_pos: ViewMut<TargetPosition>,
     ) {
-        let player_vel = &mut velocities[player.0];
-        let player_pos = &positions[player.0];
-        let player_target_pos = &mut target_positions[player.0];
+        let player_vel = &mut vel[player.0];
+        let player_pos = &pos[player.0];
+        let player_target_pos = &mut target_pos[player.0];
 
         player_vel.0 = if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
             vec2(0.0, -1.0)
@@ -37,7 +37,7 @@ impl InputSystem {
         } else if is_mouse_button_released(MouseButton::Right) {
             let mouse_pos = camera.0.screen_to_world(mouse_position().into());
 
-            for (id, pos) in (&positions).iter().with_id() {
+            for (id, pos) in (&pos).iter().with_id() {
                 let monster_rect = Rect::new(
                     pos.0.x - TILE_OFFSET.x,
                     pos.0.y - TILE_OFFSET.y,
@@ -46,7 +46,7 @@ impl InputSystem {
                 );
 
                 if monster_rect.contains(mouse_pos) {
-                    targets.add_component_unchecked(player.0, Target(id));
+                    target.add_component_unchecked(player.0, Target(id));
                 }
             }
         }

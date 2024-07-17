@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::{Camera, Health, Player, Position, Sprite, Target, TargetPosition};
+use crate::game::{Health, Player, Position, Sprite, Target, TargetPosition};
 use macroquad::ui::root_ui;
 
 pub struct RenderSystem;
@@ -7,6 +7,10 @@ pub struct RenderSystem;
 impl RenderSystem {
     pub fn draw_map(mut map: UniqueViewMut<Map>) {
         map.draw();
+    }
+
+    pub fn draw_camera(camera: UniqueView<Viewport>) {
+        camera.draw();
     }
 
     pub fn draw_entities(
@@ -49,10 +53,6 @@ impl RenderSystem {
         }
     }
 
-    pub fn set_camera(camera: UniqueView<Camera>) {
-        set_camera(&camera.0);
-    }
-
     pub fn draw_player_target(
         player: UniqueView<Player>,
         position: View<Position>,
@@ -75,7 +75,7 @@ impl RenderSystem {
     pub fn debug(
         player: UniqueView<Player>,
         positions: View<Position>,
-        camera: UniqueView<Camera>,
+        camera: UniqueView<Viewport>,
         target_positions: View<TargetPosition>
     ) {
         let player_pos = &positions[player.0];
