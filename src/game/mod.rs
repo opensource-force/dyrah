@@ -34,11 +34,41 @@ pub struct Target(EntityId);
 pub struct Health(f32);
 #[derive(Component)]
 pub struct Damage(f32);
-#[derive(Component)]
-pub struct Dead(Option<EntityId>);
 
 #[derive(Unique)]
 pub struct Player(EntityId);
 
 #[derive(Component)]
 pub struct Monster;
+
+use systems::prelude::*;
+
+pub struct Workloads;
+
+impl Workloads {
+    pub fn events() -> Workload {
+        (
+            InputSystem::control_player,
+            AiSystem::control_monsters
+        ).into_workload()
+    }
+    
+    pub fn update() -> Workload {
+        (
+            MovementSystem::move_player,
+            MovementSystem::update,
+            DamageSystem::attack_target
+        ).into_workload()
+    }
+    
+    pub fn draw() -> Workload {
+        (
+            |_: AllStoragesViewMut| clear_background(SKYBLUE),
+            RenderSystem::draw_map,
+            RenderSystem::draw_entities,
+            RenderSystem::set_camera,
+            RenderSystem::debug,
+            RenderSystem::draw_player_target
+        ).into_workload()
+    }
+}

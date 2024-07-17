@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::{Moving, Player, Position, TargetPosition, Velocity};
+use crate::game::{Moving, Player, Position, TargetPosition, Velocity, Camera};
 
 pub struct MovementSystem;
 
@@ -38,5 +38,32 @@ impl MovementSystem {
         for (pos, vel) in (&mut positions, &velocities).iter() {
             pos.0 += vel.0;
         }
+    }
+
+    pub fn move_player(
+        player: UniqueView<Player>,
+        mut map: UniqueViewMut<Map>,
+        mut camera: UniqueViewMut<Camera>,
+        mut moving: ViewMut<Moving>,
+        mut target_pos: ViewMut<TargetPosition>,
+        pos: View<Position>,
+    ) {
+        if let Some(tile) = map.get_tile(target_pos[player.0].0) {
+            if tile.walkable {
+                moving[player.0].0 = true;
+                target_pos[player.0].0 = tile.rect.center();
+            }
+        } else {
+            moving[player.0].0 = false;
+        }
+
+        camera.0.target = pos[player.0].0;
+
+        map.update(Rect::new(
+            pos[player.0].0.x - screen_width() / 2.0 - TILE_SIZE.x,
+            pos[player.0].0.y - screen_height() / 2.0 - TILE_SIZE.y,
+            screen_width() + TILE_SIZE.x,
+            screen_height() + TILE_SIZE.y,
+        ));
     }
 }

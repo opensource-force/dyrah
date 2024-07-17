@@ -1,17 +1,20 @@
 use super::*;
-use crate::game::{Camera, Health, Player, Position, Sprite, TargetPosition};
+use crate::game::{Camera, Health, Player, Position, Sprite, Target, TargetPosition};
 use macroquad::ui::root_ui;
 
 pub struct RenderSystem;
 
 impl RenderSystem {
+    pub fn draw_map(mut map: UniqueViewMut<Map>) {
+        map.draw();
+    }
+
     pub fn draw_entities(
-        player: UniqueView<Player>,
         positions: View<Position>,
         sprites: View<Sprite>,
-        healths: View<Health>,
+        healths: View<Health>
     ) {
-        for (id, (pos, sprite, health)) in (&positions, &sprites, &healths).iter().with_id() {
+        for (pos, sprite, health) in (&positions, &sprites, &healths).iter() {
             draw_texture_ex(
                 &sprite.tex,
                 pos.0.x - TILE_OFFSET.x,
@@ -28,12 +31,6 @@ impl RenderSystem {
                 },
             );
 
-            if id == player.0 {
-                continue;
-            }
-
-            let health_bar_width = (TILE_SIZE.x * health.0 / 50.0).clamp(0.0, TILE_SIZE.x);
-
             draw_rectangle(
                 pos.0.x - TILE_OFFSET.x,
                 pos.0.y - 20.0,
@@ -45,9 +42,32 @@ impl RenderSystem {
             draw_rectangle(
                 pos.0.x - TILE_OFFSET.x,
                 pos.0.y - 20.0,
-                health_bar_width,
+                (TILE_SIZE.x * health.0 / 50.0).clamp(0.0, TILE_SIZE.x),
                 4.0,
                 GREEN,
+            );
+        }
+    }
+
+    pub fn set_camera(camera: UniqueView<Camera>) {
+        set_camera(&camera.0);
+    }
+
+    pub fn draw_player_target(
+        player: UniqueView<Player>,
+        position: View<Position>,
+        target: View<Target>
+    ) {
+        if let Ok(target) = target.get(player.0) {
+            let monster_pos = &position[target.0];
+
+            draw_rectangle_lines(
+                monster_pos.0.x - TILE_OFFSET.x,
+                monster_pos.0.y - TILE_OFFSET.y,
+                TILE_SIZE.x,
+                TILE_SIZE.y,
+                2.0,
+                PURPLE,
             );
         }
     }
@@ -56,7 +76,7 @@ impl RenderSystem {
         player: UniqueView<Player>,
         positions: View<Position>,
         camera: UniqueView<Camera>,
-        target_positions: View<TargetPosition>,
+        target_positions: View<TargetPosition>
     ) {
         let player_pos = &positions[player.0];
         let player_target_pos = &target_positions[player.0];
