@@ -35,7 +35,7 @@ pub struct Health(f32);
 #[derive(Component)]
 pub struct Damage(f32);
 #[derive(Component)]
-pub struct Dead(());
+pub struct Dead;
 
 #[derive(Unique)]
 pub struct Player(EntityId);
