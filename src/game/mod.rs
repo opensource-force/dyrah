@@ -34,6 +34,8 @@ pub struct Target(EntityId);
 pub struct Health(f32);
 #[derive(Component)]
 pub struct Damage(f32);
+#[derive(Component)]
+pub struct Dead(());
 
 #[derive(Unique)]
 pub struct Player(EntityId);
@@ -54,7 +56,8 @@ impl Workloads {
     pub fn update() -> Workload {
         (
             MovementSystem::update,
-            DamageSystem::attack_target
+            DamageSystem::attack_target,
+            RemovalSystem::remove_dead
         ).into_workload()
     }
     
