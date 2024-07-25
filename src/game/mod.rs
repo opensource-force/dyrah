@@ -1,12 +1,12 @@
+mod camera;
 mod game;
 mod map;
-mod camera;
 mod systems;
 
 pub mod prelude {
+    pub use super::camera::*;
     pub use super::game::*;
     pub use super::map::*;
-    pub use super::camera::*;
 }
 
 use macroquad::prelude::*;
@@ -47,28 +47,27 @@ pub struct Workloads;
 
 impl Workloads {
     pub fn events() -> Workload {
-        (
-            InputSystem::control_player,
-            AiSystem::control_monsters
-        ).into_workload()
+        (InputSystem::control_player, AiSystem::control_monsters).into_workload()
     }
-    
+
     pub fn update() -> Workload {
         (
             MovementSystem::update,
             DamageSystem::attack_target,
-            RemovalSystem::remove_dead
-        ).into_workload()
+            RemovalSystem::remove_dead,
+        )
+            .into_workload()
     }
-    
+
     pub fn draw() -> Workload {
         (
             |_: AllStoragesViewMut| clear_background(SKYBLUE),
+            RenderSystem::draw_camera,
             RenderSystem::draw_map,
             RenderSystem::draw_entities,
-            RenderSystem::draw_camera,
+            RenderSystem::draw_player_target,
             RenderSystem::debug,
-            RenderSystem::draw_player_target
-        ).into_workload()
+        )
+            .into_sequential_workload()
     }
 }

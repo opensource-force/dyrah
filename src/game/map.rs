@@ -18,10 +18,12 @@ pub struct Map {
 
 impl Map {
     pub async fn new(data_path: &str, tex_path: &str) -> Self {
+        let tex = load_texture(tex_path).await.unwrap();
+        tex.set_filter(FilterMode::Nearest);
         Self {
             tiled: tiled::load_map(
                 &load_string(data_path).await.unwrap(),
-                &[("tiles.png", load_texture(tex_path).await.unwrap())],
+                &[("tiles.png", tex)],
                 &[],
             )
             .unwrap(),
