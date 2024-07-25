@@ -7,7 +7,7 @@ impl InputSystem {
     pub fn control_player(
         player: UniqueView<Player>,
         pos: View<Position>,
-        camera: UniqueView<Viewport>,
+        viewport: UniqueView<Viewport>,
         mut vel: ViewMut<Velocity>,
         mut target: ViewMut<Target>,
         mut target_pos: ViewMut<TargetPosition>,
@@ -33,9 +33,9 @@ impl InputSystem {
         }
 
         if is_mouse_button_released(MouseButton::Left) {
-            player_target_pos.0 = camera.0.screen_to_world(mouse_position().into());
+            player_target_pos.0 = viewport.camera.screen_to_world(mouse_position().into());
         } else if is_mouse_button_released(MouseButton::Right) {
-            let mouse_pos = camera.0.screen_to_world(mouse_position().into());
+            let mouse_pos = viewport.camera.screen_to_world(mouse_position().into());
 
             for (id, pos) in (&pos).iter().with_id() {
                 let monster_rect = Rect::new(

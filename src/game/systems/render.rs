@@ -13,11 +13,7 @@ impl RenderSystem {
         camera.draw();
     }
 
-    pub fn draw_entities(
-        positions: View<Position>,
-        sprites: View<Sprite>,
-        healths: View<Health>
-    ) {
+    pub fn draw_entities(positions: View<Position>, sprites: View<Sprite>, healths: View<Health>) {
         for (pos, sprite, health) in (&positions, &sprites, &healths).iter() {
             draw_texture_ex(
                 &sprite.tex,
@@ -56,7 +52,7 @@ impl RenderSystem {
     pub fn draw_player_target(
         player: UniqueView<Player>,
         position: View<Position>,
-        target: View<Target>
+        target: View<Target>,
     ) {
         if let Ok(target) = target.get(player.0) {
             let monster_pos = &position[target.0];
@@ -75,14 +71,14 @@ impl RenderSystem {
     pub fn debug(
         player: UniqueView<Player>,
         positions: View<Position>,
-        camera: UniqueView<Viewport>,
-        target_positions: View<TargetPosition>
+        viewport: UniqueView<Viewport>,
+        target_positions: View<TargetPosition>,
     ) {
         let player_pos = &positions[player.0];
         let player_target_pos = &target_positions[player.0];
 
         let tile_pos = (player_pos.0 / TILE_SIZE).floor();
-        let mouse_pos = camera.0.screen_to_world(mouse_position().into());
+        let mouse_pos = viewport.camera.screen_to_world(mouse_position().into());
 
         root_ui().label(
             None,
