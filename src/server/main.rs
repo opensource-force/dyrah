@@ -1,34 +1,43 @@
-use std::{net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}};
+use std::{net::UdpSocket, time::{Instant, SystemTime}};
 
 use renet::{transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig}, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
 
-fn main() {
-    let addr: SocketAddr = "127.0.0.1:6667".parse().unwrap();
-    let mut server = RenetServer::new(ConnectionConfig::default());
-    let socket = UdpSocket::bind(addr).unwrap();
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let server_config = ServerConfig {
-        current_time,
-        max_clients: 64,
-        protocol_id: 7,
-        public_addresses: vec![addr],
-        authentication: ServerAuthentication::Unsecure,
-    };
-    let mut transport = NetcodeServerTransport::new(server_config, socket).unwrap();
-    let mut received_messages = vec![];
-    let mut last_updated = Instant::now();
+struct Server {
+    renet: RenetServer,
+    transport: NetcodeServerTransport,
+    last_updated: Instant
+}
 
-    loop {
+impl Server {
+    fn new(addr: &str) -> Self {
+        let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let socket = UdpSocket::bind(addr).unwrap();
+        let server_config = ServerConfig {
+            current_time,
+            max_clients: 64,
+            protocol_id: 7,
+            public_addresses: vec![addr.parse().unwrap()],
+            authentication: ServerAuthentication::Unsecure,
+        };
+
+        Self {
+            renet: RenetServer::new(ConnectionConfig::default()),
+            transport: NetcodeServerTransport::new(server_config, socket).unwrap(),
+            last_updated: Instant::now()
+        }
+    }
+
+    fn update(&mut self) {
         let now = Instant::now();
-        let duration = now - last_updated;
-        last_updated = now;
+        let duration = now - self.last_updated;
+        self.last_updated = now;
         
-        server.update(duration);
-        transport.update(duration, &mut server).unwrap();
+        self.renet.update(duration);
+        self.transport.update(duration, &mut self.renet).unwrap();
+    }
 
-        received_messages.clear();
-        
-        while let Some(event) = server.get_event() {
+    fn handle_events(&mut self) {
+        while let Some(event) = self.renet.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     println!("Client {} connected", client_id);
@@ -38,19 +47,35 @@ fn main() {
                 }
             }
         }
-        
-        for client_id in server.clients_id() {
-            while let Some(msg) = server.receive_message(client_id, DefaultChannel::ReliableOrdered) {
-                let text = String::from_utf8(msg.into()).unwrap();
+    }
 
-                println!("Client sent {}", text);
+    fn handle_messages(&mut self, buf: &mut Vec<String>) {
+        buf.clear();
 
-                received_messages.push(text);
+        for client_id in self.renet.clients_id() {
+            while let Some(msg) = self.renet.receive_message(
+                client_id, DefaultChannel::ReliableOrdered
+            ) {
+                buf.push(String::from_utf8(msg.into()).unwrap());
             }
         }
 
-        for text in received_messages.iter() {
-            server.broadcast_message(DefaultChannel::ReliableOrdered, text.as_bytes().to_vec());
+        for msg in buf.iter() {
+            self.renet.broadcast_message(
+                DefaultChannel::ReliableOrdered,
+                msg.as_bytes().to_vec()
+            );
         }
+    }
+}
+
+fn main() {
+    let mut server = Server::new("127.0.0.1:6667");
+    let mut buf = Vec::new();
+
+    loop {
+        server.update();
+        server.handle_events();
+        server.handle_messages(&mut buf);
     }
 }

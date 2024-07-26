@@ -1,58 +1,108 @@
-use std::{net::{SocketAddr, UdpSocket}, sync::mpsc::{self, Receiver, TryRecvError}, thread, time::{Duration, Instant, SystemTime}};
+mod systems;
 
+use std::{net::UdpSocket, sync::mpsc::{Receiver, TryRecvError}, time::{Instant, SystemTime}};
+
+use dyhra::{spawn_stdin_channel, Player, Position, Sprite, Velocity};
+use macroquad::prelude::*;
 use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ConnectionConfig, DefaultChannel, RenetClient};
+use shipyard::*;
+use systems::prelude::*;
 
-fn main() {
-    let addr = "127.0.0.1:6668";
-    let server_addr: SocketAddr = "127.0.0.1:6667".parse().unwrap();
+struct Client {
+    renet: RenetClient,
+    transport: NetcodeClientTransport,
+    last_updated: Instant
+}
 
-    let mut client = RenetClient::new(ConnectionConfig::default());
-    let socket = UdpSocket::bind(addr).unwrap();
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let client_id = current_time.as_millis() as u64;
-    let authentication = ClientAuthentication::Unsecure {
-        server_addr,
-        client_id,
-        user_data: None,
-        protocol_id: 7,
-    };
+impl Client {
+    pub fn new(addr: &str, server_addr: &str) -> Self {
+        let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let client_id = current_time.as_millis() as u64;
+        let socket = UdpSocket::bind(addr).unwrap();
+        let authentication = ClientAuthentication::Unsecure {
+            server_addr: server_addr.parse().unwrap(),
+            client_id,
+            user_data: None,
+            protocol_id: 7,
+        };
 
-    let mut transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
-    let stdin_channel: Receiver<String> = spawn_stdin_channel();
-    let mut last_updated = Instant::now();
+        Self {
+            renet: RenetClient::new(ConnectionConfig::default()),
+            transport: NetcodeClientTransport::new(
+                current_time,
+                authentication,
+                socket
+            ).unwrap(),
+            last_updated: Instant::now()
+        }
+    }
 
-    loop {
+    fn update(&mut self) {
         let now = Instant::now();
-        let duration = now - last_updated;
-        last_updated = now;
+        let duration = now - self.last_updated;
+        self.last_updated = now;
 
-        client.update(duration);
-        transport.update(duration, &mut client).unwrap();
+        self.renet.update(duration);
+        self.transport.update(duration, &mut self.renet).unwrap();
+    }
 
-        if client.is_connected() {
-            match stdin_channel.try_recv() {
-                Ok(text) => client.send_message(DefaultChannel::ReliableOrdered, text.as_bytes().to_vec()),
+    fn handle_messages(&mut self, channel: &Receiver<String>) {
+        if self.renet.is_connected() {
+            match channel.try_recv() {
+                Ok(text) => {
+                    self.renet.send_message(
+                        DefaultChannel::ReliableOrdered,
+                        text.as_bytes().to_vec()
+                    )
+                }
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
             }
 
-            while let Some(text) = client.receive_message(DefaultChannel::ReliableOrdered) {
+            while let Some(text) = self.renet.receive_message(
+                DefaultChannel::ReliableOrdered
+            ) {
                 let text = String::from_utf8(text.into()).unwrap();
                 println!("{}", text);
             }
-        }
 
-        transport.send_packets(&mut client).unwrap();
-        thread::sleep(Duration::from_millis(50));
+            self.transport.send_packets(&mut self.renet).unwrap();
+        }
     }
 }
 
-fn spawn_stdin_channel() -> Receiver<String> {
-    let (tx, rx) = mpsc::channel::<String>();
-    thread::spawn(move || loop {
-        let mut buffer = String::new();
-        std::io::stdin().read_line(&mut buffer).unwrap();
-        tx.send(buffer.trim_end().to_string()).unwrap();
-    });
-    rx
+#[macroquad::main("Dyhra")]
+async fn main() {
+    let stdin_channel: Receiver<String> = spawn_stdin_channel();
+    let mut client = Client::new("127.0.0.1:6668", "127.0.0.1:6667");
+
+    let mut world = World::new();
+
+    let player_id = world.add_entity((
+        Position(vec2(0.0, 0.0)),
+        Velocity(vec2(0.0, 0.0)),
+        Sprite {
+            tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
+            frame: ivec2(1, 4)
+        }
+    ));
+    world.add_unique(Player(player_id));
+
+    world.add_workload(Workloads::events);
+    world.add_workload(Workloads::update);
+    world.add_workload(Workloads::draw);
+
+    loop {
+        clear_background(SKYBLUE);
+
+        client.update();
+
+        world.run_workload(Workloads::events).unwrap();
+        world.run_workload(Workloads::update).unwrap();
+        world.run_workload(Workloads::draw).unwrap();
+
+        client.handle_messages(&stdin_channel);
+
+        next_frame().await;
+    }
 }
