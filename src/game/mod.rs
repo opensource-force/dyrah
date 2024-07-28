@@ -1,14 +1,15 @@
 mod camera;
-mod game;
+mod server;
 mod map;
 mod systems;
 
 pub mod prelude {
     pub use super::camera::*;
-    pub use super::game::*;
+    pub use super::server::*;
     pub use super::map::*;
 }
 
+use std::fmt;
 use macroquad::prelude::*;
 use shipyard::*;
 use systems::prelude::*;
@@ -69,5 +70,33 @@ impl Workloads {
             RenderSystem::debug,
         )
             .into_sequential_workload()
+    }
+}
+
+
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The `f` value implements the `Write` trait, which is what the
+        // write! macro is expecting. Note that this formatting ignores the
+        // various flags provided to format strings.
+        write!(f, "({}, {})", self.0.x, self.0.y)
+    }
+}
+
+impl fmt::Display for Velocity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The `f` value implements the `Write` trait, which is what the
+        // write! macro is expecting. Note that this formatting ignores the
+        // various flags provided to format strings.
+        write!(f, "({}, {})", self.0.x, self.0.y)
+    }
+}
+
+impl fmt::Display for Health {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The `f` value implements the `Write` trait, which is what the
+        // write! macro is expecting. Note that this formatting ignores the
+        // various flags provided to format strings.
+        write!(f, "({})", self.0)
     }
 }

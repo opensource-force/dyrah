@@ -1,16 +1,16 @@
 use macroquad::prelude::next_frame;
-
-use dyhra::game::prelude::Game;
+//use futures::executor::block_on;
+use dyhra::game::prelude::*;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
-    let game = Game::new().await;
+    let mut server = Server::new("127.0.0.1:6667");
+
+    let mut buf = Vec::new();
 
     loop {
-        game.events();
-        game.update();
-        game.draw();
-
-        next_frame().await;
+        server.update();
+        server.handle_events();
+        server.handle_messages(&mut buf);
     }
 }
