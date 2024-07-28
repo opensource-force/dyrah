@@ -2,11 +2,13 @@ mod camera;
 mod server;
 mod map;
 mod systems;
+mod client;
 
 pub mod prelude {
     pub use super::camera::*;
     pub use super::server::*;
     pub use super::map::*;
+    pub use super::client::Client;
 }
 
 use std::fmt;
