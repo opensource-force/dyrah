@@ -1,10 +1,7 @@
 use std::{sync::mpsc::{self, Receiver}, thread};
 
-use macroquad::{math::{IVec2, Vec2}, texture::Texture2D};
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
-
-
 
 pub struct Player(u64);
 

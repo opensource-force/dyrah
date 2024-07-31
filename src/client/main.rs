@@ -1,13 +1,21 @@
-use std::{net::UdpSocket, sync::mpsc::{Receiver, TryRecvError}, time::{Instant, SystemTime}};
+use std::{
+    collections::VecDeque,
+    net::UdpSocket,
+    time::{Instant, SystemTime}
+};
 
-use dyhra::{spawn_stdin_channel, Player, Position, SerializableClientId, ServerChannel, ServerMessages};
+use dyhra::ServerMessages;
 use macroquad::prelude::*;
-use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, DefaultChannel, RenetClient};
+use renet::{
+    transport::{ClientAuthentication, NetcodeClientTransport},
+    ClientId, ConnectionConfig, RenetClient
+};
 
 struct Client {
     renet: RenetClient,
     transport: NetcodeClientTransport,
-    last_updated: Instant
+    last_updated: Instant,
+    message_queue: VecDeque<Vec<u8>>
 }
 
 impl Client {
@@ -19,7 +27,7 @@ impl Client {
             server_addr: server_addr.parse().unwrap(),
             client_id,
             user_data: None,
-            protocol_id: 7,
+            protocol_id: 7
         };
 
         Self {
@@ -29,7 +37,8 @@ impl Client {
                 authentication,
                 socket
             ).unwrap(),
-            last_updated: Instant::now()
+            last_updated: Instant::now(),
+            message_queue: VecDeque::new(),
         }
     }
 
@@ -41,18 +50,16 @@ impl Client {
         self.renet.update(duration);
         self.transport.update(duration, &mut self.renet).unwrap();
 
-        while let Some(msg) = self.renet.receive_message(ServerChannel::ServerMessages) {
+        while let Some(msg) = self.message_queue.pop_front() {
             let server_msg: ServerMessages = bincode::deserialize(&msg).unwrap();
-    
+            
             match server_msg {
                 ServerMessages::PlayerCreate { id } => {
                     println!("Player {} connected", ClientId::from(id));
-
                     // render player
                 },
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} disconnected", ClientId::from(id));
-    
                     // delete player
                 }
             }
