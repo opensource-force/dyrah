@@ -1,20 +1,18 @@
 use std::{sync::mpsc::{self, Receiver}, thread};
 
 use macroquad::{math::{IVec2, Vec2}, texture::Texture2D};
-use shipyard::{Component, EntityId, Unique};
+use renet::ClientId;
+use serde::{Deserialize, Serialize};
 
-#[derive(Unique)]
-pub struct Player(pub EntityId);
 
-#[derive(Component)]
-pub struct Position(pub Vec2);
-#[derive(Component)]
-pub struct Velocity(pub Vec2);
-#[derive(Component)]
-pub struct Sprite {
-    pub tex: Texture2D,
-    pub frame: IVec2
+
+pub struct Player(u64);
+
+pub struct Position {
+    pub x: f32,
+    pub y: f32
 }
+
 
 pub fn spawn_stdin_channel() -> Receiver<String> {
     let (tx, rx) = mpsc::channel::<String>();
@@ -26,4 +24,57 @@ pub fn spawn_stdin_channel() -> Receiver<String> {
         tx.send(buffer.trim_end().to_string()).unwrap();
     });
     rx
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SerializableClientId(u64);
+
+impl From<ClientId> for SerializableClientId {
+    fn from(client_id: ClientId) -> Self {
+        SerializableClientId(client_id.raw())
+    }
+}
+
+impl From<SerializableClientId> for ClientId {
+    fn from(serializable_id: SerializableClientId) -> Self {
+        ClientId::from_raw(serializable_id.0)
+    }
+}
+
+impl From<ClientChannel> for u8 {
+    fn from(channel_id: ClientChannel) -> Self {
+        match channel_id {
+            ClientChannel::Command => 0,
+            ClientChannel::Input => 1,
+        }
+    }
+}
+
+impl From<ServerChannel> for u8 {
+    fn from(channel_id: ServerChannel) -> Self {
+        match channel_id {
+            ServerChannel::NetworkedEntities => 0,
+            ServerChannel::ServerMessages => 1,
+        }
+    }
+}
+
+pub enum ClientChannel {
+    Input,
+    Command,
+}
+
+pub enum ServerChannel {
+    ServerMessages,
+    NetworkedEntities,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ServerMessages {
+    PlayerCreate {
+        id: SerializableClientId
+    },
+    PlayerDelete {
+        id: SerializableClientId
+    }
 }

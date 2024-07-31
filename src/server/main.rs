@@ -1,11 +1,15 @@
-use std::{net::UdpSocket, time::{Instant, SystemTime}};
-
-use renet::{transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig}, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
+use std::{collections::HashMap, net::UdpSocket, time::{Instant, SystemTime}};
+use dyhra::{ClientChannel, ServerChannel, ServerMessages};
+use renet::{transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig}, ClientId, ConnectionConfig, RenetServer, ServerEvent};
 
 struct Server {
     renet: RenetServer,
     transport: NetcodeServerTransport,
-    last_updated: Instant
+    last_updated: Instant,
+}
+
+struct Lobby {
+    players: HashMap<ClientId, u64>
 }
 
 impl Server {
@@ -23,7 +27,7 @@ impl Server {
         Self {
             renet: RenetServer::new(ConnectionConfig::default()),
             transport: NetcodeServerTransport::new(server_config, socket).unwrap(),
-            last_updated: Instant::now()
+            last_updated: Instant::now(),
         }
     }
 
@@ -34,48 +38,57 @@ impl Server {
         
         self.renet.update(duration);
         self.transport.update(duration, &mut self.renet).unwrap();
-    }
 
-    fn handle_events(&mut self) {
         while let Some(event) = self.renet.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     println!("Client {} connected", client_id);
+
+                    // spawn player
+    
+                    //lobby.players.insert(client_id, player_id);
+
+                    let msg = bincode::serialize(
+                        &ServerMessages::PlayerCreate {
+                            id: client_id.into(),
+                            //position:
+                        }
+                    ).unwrap();
+    
+                    self.renet.send_message(client_id, ServerChannel::ServerMessages, msg);
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     println!("Client {} disconnected: {}", client_id, reason);
+    
+                    //if let Some(player_id) = lobby.players.remove(&client_id) {
+                        // delete player
+                    //}
+    
+                    let msg = bincode::serialize(
+                        &ServerMessages::PlayerDelete { id: client_id.into() }
+                    ).unwrap();
+    
+                    self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
                 }
             }
         }
-    }
-
-    fn handle_messages(&mut self, buf: &mut Vec<String>) {
-        buf.clear();
-
+    
         for client_id in self.renet.clients_id() {
             while let Some(msg) = self.renet.receive_message(
-                client_id, DefaultChannel::ReliableOrdered
+                client_id, ClientChannel::Input
             ) {
-                buf.push(String::from_utf8(msg.into()).unwrap());
+                //if let Some(player_id) = lobby.players.get(&client_id) {
+                    // handle input
+                //}
             }
-        }
-
-        for msg in buf.iter() {
-            self.renet.broadcast_message(
-                DefaultChannel::ReliableOrdered,
-                msg.as_bytes().to_vec()
-            );
         }
     }
 }
 
 fn main() {
     let mut server = Server::new("127.0.0.1:6667");
-    let mut buf = Vec::new();
 
     loop {
         server.update();
-        server.handle_events();
-        server.handle_messages(&mut buf);
     }
 }

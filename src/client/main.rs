@@ -1,12 +1,8 @@
-mod systems;
-
 use std::{net::UdpSocket, sync::mpsc::{Receiver, TryRecvError}, time::{Instant, SystemTime}};
 
-use dyhra::{spawn_stdin_channel, Player, Position, Sprite, Velocity};
+use dyhra::{spawn_stdin_channel, Player, Position, SerializableClientId, ServerChannel, ServerMessages};
 use macroquad::prelude::*;
-use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ConnectionConfig, DefaultChannel, RenetClient};
-use shipyard::*;
-use systems::prelude::*;
+use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, DefaultChannel, RenetClient};
 
 struct Client {
     renet: RenetClient,
@@ -44,64 +40,34 @@ impl Client {
 
         self.renet.update(duration);
         self.transport.update(duration, &mut self.renet).unwrap();
-    }
 
-    fn handle_messages(&mut self, channel: &Receiver<String>) {
-        if self.renet.is_connected() {
-            match channel.try_recv() {
-                Ok(text) => {
-                    self.renet.send_message(
-                        DefaultChannel::ReliableOrdered,
-                        text.as_bytes().to_vec()
-                    )
+        while let Some(msg) = self.renet.receive_message(ServerChannel::ServerMessages) {
+            let server_msg: ServerMessages = bincode::deserialize(&msg).unwrap();
+    
+            match server_msg {
+                ServerMessages::PlayerCreate { id } => {
+                    println!("Player {} connected", ClientId::from(id));
+
+                    // render player
+                },
+                ServerMessages::PlayerDelete { id } => {
+                    println!("Player {} disconnected", ClientId::from(id));
+    
+                    // delete player
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
             }
-
-            while let Some(text) = self.renet.receive_message(
-                DefaultChannel::ReliableOrdered
-            ) {
-                let text = String::from_utf8(text.into()).unwrap();
-                println!("{}", text);
-            }
-
-            self.transport.send_packets(&mut self.renet).unwrap();
         }
     }
 }
 
 #[macroquad::main("Dyhra")]
 async fn main() {
-    let stdin_channel: Receiver<String> = spawn_stdin_channel();
     let mut client = Client::new("127.0.0.1:6668", "127.0.0.1:6667");
-
-    let mut world = World::new();
-
-    let player_id = world.add_entity((
-        Position(vec2(0.0, 0.0)),
-        Velocity(vec2(0.0, 0.0)),
-        Sprite {
-            tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
-            frame: ivec2(1, 4)
-        }
-    ));
-    world.add_unique(Player(player_id));
-
-    world.add_workload(Workloads::events);
-    world.add_workload(Workloads::update);
-    world.add_workload(Workloads::draw);
 
     loop {
         clear_background(SKYBLUE);
 
         client.update();
-
-        world.run_workload(Workloads::events).unwrap();
-        world.run_workload(Workloads::update).unwrap();
-        world.run_workload(Workloads::draw).unwrap();
-
-        client.handle_messages(&stdin_channel);
 
         next_frame().await;
     }
