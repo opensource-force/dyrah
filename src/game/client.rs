@@ -119,7 +119,7 @@ impl Client {
                 DefaultChannel::ReliableOrdered
             ) {
                 let text = String::from_utf8(text.into()).unwrap();
-                println!("{}", text);
+                println!("Client Received: {}", text);
             }
 
             self.transport.send_packets(&mut self.renet).unwrap();

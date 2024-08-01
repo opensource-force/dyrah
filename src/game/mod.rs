@@ -15,6 +15,7 @@ use std::fmt;
 use macroquad::prelude::*;
 use shipyard::*;
 use systems::prelude::*;
+use renet::ClientId;
 
 pub struct WorldTime(f64);
 
@@ -45,6 +46,12 @@ pub struct Player(EntityId);
 
 #[derive(Component)]
 pub struct Monster;
+
+#[derive(Component)]
+pub struct NPC(bool);
+
+#[derive(Component)]
+pub struct Client_ID(ClientId);
 
 pub struct Workloads;
 
@@ -99,6 +106,16 @@ impl fmt::Display for Health {
         // The `f` value implements the `Write` trait, which is what the
         // write! macro is expecting. Note that this formatting ignores the
         // various flags provided to format strings.
+        write!(f, "({})", self.0)
+    }
+}
+impl fmt::Display for NPC{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.0)
+    }
+}
+impl fmt::Display for Client_ID{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({})", self.0)
     }
 }

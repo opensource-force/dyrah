@@ -17,7 +17,7 @@ impl Game {
 
         let _monster_ids = world.bulk_add_entity((0..199).map(|_| {
             (
-                Monster,
+                NPC(true),
                 Position(vec2(
                     rand::gen_range(0.0, 64.0 * TILE_SIZE.x),
                     rand::gen_range(0.0, 64.0 * TILE_SIZE.y),
@@ -94,21 +94,36 @@ impl Server {
                             Moving(false),
                             Health(100.0),
                             Damage(5.0),
+                            NPC(false),
+                            Client_ID(client_id)
                     ));
-                    self.game.0.run(|pos: View<Position>|{
-                        for (id,position ) in pos.iter().with_id(){
-                            let(velocity,health) = self.game.0.borrow::<(View<Velocity>,View<Health>)>().unwrap();
-                            let message = json!({
-                                "id": format!("{:?}",id),
-                                "pos": format!("{}",position),
-                                "vel": format!("{}",&velocity.get(id).unwrap()),
-                                "health": format!("{}",&health.get(id).unwrap())
-                            });
-
+                    self.game.0.run(|npc: View<NPC>|{
+                        for (id,NonPC) in npc.iter().with_id(){
+                            let mut message = json!({});
+                            if NonPC.0{
+                                let(velocity,health,position) = self.game.0.borrow::<(View<Velocity>,View<Health>,View<Position>)>().unwrap();
+                                message = json!({
+                                    "NPC": format!("{}", NonPC),
+                                    "id": format!("{:?}",id),
+                                    "pos": format!("{}",&position.get(id).unwrap()),
+                                    "vel": format!("{}",&velocity.get(id).unwrap()),
+                                    "health": format!("{}",&health.get(id).unwrap())
+                                });
+                            }
+                            else{
+                                let(velocity,health,position,client_id) = self.game.0.borrow::<(View<Velocity>,View<Health>,View<Position>, View<Client_ID>)>().unwrap();
+                                message = json!({
+                                    "NPC": format!("{}",NonPC),
+                                    "id": format!("{:?}",id),
+                                    "pos": format!("{}",&position.get(id).unwrap()),
+                                    "vel": format!("{}",&velocity.get(id).unwrap()),
+                                    "health": format!("{}",&health.get(id).unwrap()),
+                                    "c_id": format!("{}",&client_id.get(id).unwrap())
+                                });
+                            }
                             println!("{}",message.to_string());
                             let buf = message.to_string().as_bytes().to_vec();
                             self.renet.send_message(client_id,DefaultChannel::ReliableOrdered, buf);
-
                         }
                     });
                 }
