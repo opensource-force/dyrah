@@ -1,29 +1,8 @@
-use std::{sync::mpsc::{self, Receiver}, thread};
-
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 
-pub struct Player(u64);
 
-pub struct Position {
-    pub x: f32,
-    pub y: f32
-}
-
-
-pub fn spawn_stdin_channel() -> Receiver<String> {
-    let (tx, rx) = mpsc::channel::<String>();
-
-    thread::spawn(move || loop {
-        let mut buffer = String::new();
-
-        std::io::stdin().read_line(&mut buffer).unwrap();
-        tx.send(buffer.trim_end().to_string()).unwrap();
-    });
-    rx
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SerializableClientId(u64);
 
 impl From<ClientId> for SerializableClientId {
@@ -36,6 +15,26 @@ impl From<SerializableClientId> for ClientId {
     fn from(serializable_id: SerializableClientId) -> Self {
         ClientId::from_raw(serializable_id.0)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ServerMessages {
+    PlayerCreate {
+        id: SerializableClientId
+    },
+    PlayerDelete {
+        id: SerializableClientId
+    }
+}
+
+pub enum ServerChannel {
+    ServerMessages,
+    NetworkedEntities,
+}
+
+pub enum ClientChannel {
+    Input,
+    Command,
 }
 
 impl From<ClientChannel> for u8 {
@@ -56,22 +55,13 @@ impl From<ServerChannel> for u8 {
     }
 }
 
-pub enum ClientChannel {
-    Input,
-    Command,
-}
-
-pub enum ServerChannel {
-    ServerMessages,
-    NetworkedEntities,
+#[derive(Serialize, Deserialize)]
+pub struct Velocity {
+    x: f32,
+    y: f32
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum ServerMessages {
-    PlayerCreate {
-        id: SerializableClientId
-    },
-    PlayerDelete {
-        id: SerializableClientId
-    }
+pub struct PlayerInput {
+    pub velocity: Velocity
 }
