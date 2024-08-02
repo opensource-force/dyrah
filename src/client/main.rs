@@ -1,60 +1,9 @@
-use std::{net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}};
+mod client;
 
-use dyhra::{ServerChannel, ServerMessages};
-use macroquad::{color::SKYBLUE, window::{clear_background, next_frame}};
-use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient};
-
-struct Client {
-    renet: RenetClient,
-    transport: NetcodeClientTransport,
-    last_updated: Instant
-}
-
-impl Client {
-    fn new(server_addr: SocketAddr) -> Self {
-        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        let client_id = current_time.as_millis() as u64;
-        let authentication = ClientAuthentication::Unsecure {
-            server_addr,
-            client_id,
-            user_data: None,
-            protocol_id: 7
-        };
-    
-        Self {
-            renet: RenetClient::new(ConnectionConfig::default()),
-            transport: NetcodeClientTransport::new(current_time, authentication, socket).unwrap(),
-            last_updated: Instant::now()
-        }
-    }
-
-    fn update(&mut self) {
-        let now = Instant::now();
-        let duration = now - self.last_updated;
-        self.last_updated = now;
-
-        self.renet.update(duration);
-        self.transport.update(duration, &mut self.renet).unwrap();
-
-        if self.renet.is_connected() {
-            while let Some(msg) = self.renet.receive_message(ServerChannel::ServerMessages) {
-                let server_msg: ServerMessages = bincode::deserialize(&msg).unwrap();
-
-                match server_msg {
-                    ServerMessages::PlayerCreate { id } => {
-                        println!("Player {} joined", ClientId::from(id));
-                    },
-                    ServerMessages::PlayerDelete { id } => {
-                        println!("Player {} left", ClientId::from(id));
-                    }
-                }
-            }
-        }
-
-        self.transport.send_packets(&mut self.renet).unwrap();
-    }
-}
+use client::Client;
+use dyhra::{ClientChannel, ClientInput, ServerMessages};
+use macroquad::{color::{RED, SKYBLUE}, input::{is_key_down, KeyCode}, shapes::draw_rectangle, window::{clear_background, next_frame}};
+use renet::ClientId;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
@@ -64,6 +13,35 @@ async fn main() {
         clear_background(SKYBLUE);
 
         client.update();
+
+        if client.renet.is_connected() {
+            while let Some(server_msg) = client.get_server_msg() {
+                match server_msg {
+                    ServerMessages::PlayerCreate { id, pos } => {
+                        println!("Player {} joined", ClientId::from(id));
+
+
+                        draw_rectangle(pos.x, pos.y, 32.0, 32.0, RED);
+                    }
+                    ServerMessages::PlayerDelete { id } => {}
+                    ServerMessages::PlayerUpdate { id, pos } => {
+                        draw_rectangle(pos.x, pos.y, 32.0, 32.0, RED);
+                    }
+                }
+            }
+
+            let input = &ClientInput {
+                left: is_key_down(KeyCode::A) || is_key_down(KeyCode::Left),
+                up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
+                down: is_key_down(KeyCode::S) || is_key_down(KeyCode::Down),
+                right: is_key_down(KeyCode::D) || is_key_down(KeyCode::Right)
+            };
+
+            if input.left || input.up || input.down || input.right {
+                let msg = bincode::serialize(input).unwrap();
+                client.renet.send_message(ClientChannel::ClientInput, msg);
+            }
+        }
 
         next_frame().await;
     }

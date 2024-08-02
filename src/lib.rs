@@ -1,9 +1,72 @@
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Position {
+    pub x: f32,
+    pub y: f32
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Velocity {
+    pub x: f32,
+    pub y: f32
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Player {
+    pub pos: Position,
+    pub vel: Velocity
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub enum ClientMessages {
+    PlayerCommand {
+        id: SerializableClientId
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ServerMessages {
+    PlayerCreate {
+        id: SerializableClientId,
+        pos: Position
+    },
+    PlayerDelete {
+        id: SerializableClientId
+    },
+    PlayerUpdate {
+        id: SerializableClientId,
+        pos: Position
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub struct ClientInput {
+    pub left: bool,
+    pub up: bool,
+    pub down: bool,
+    pub right: bool
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub enum ClientChannel {
+    ClientMessages,
+    ClientInput
+}
+
+pub enum ServerChannel {
+    ServerMessages,
+    NetworkedEntities
+}
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SerializableClientId(u64);
+
 
 impl From<ClientId> for SerializableClientId {
     fn from(client_id: ClientId) -> Self {
@@ -17,51 +80,21 @@ impl From<SerializableClientId> for ClientId {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ServerMessages {
-    PlayerCreate {
-        id: SerializableClientId
-    },
-    PlayerDelete {
-        id: SerializableClientId
-    }
-}
-
-pub enum ServerChannel {
-    ServerMessages,
-    NetworkedEntities,
-}
-
-pub enum ClientChannel {
-    Input,
-    Command,
-}
-
-impl From<ClientChannel> for u8 {
-    fn from(channel_id: ClientChannel) -> Self {
-        match channel_id {
-            ClientChannel::Command => 0,
-            ClientChannel::Input => 1,
-        }
-    }
-}
 
 impl From<ServerChannel> for u8 {
     fn from(channel_id: ServerChannel) -> Self {
         match channel_id {
             ServerChannel::NetworkedEntities => 0,
-            ServerChannel::ServerMessages => 1,
+            ServerChannel::ServerMessages => 1
         }
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Velocity {
-    x: f32,
-    y: f32
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct PlayerInput {
-    pub velocity: Velocity
+impl From<ClientChannel> for u8 {
+    fn from(channel_id: ClientChannel) -> Self {
+        match channel_id {
+            ClientChannel::ClientInput => 0,
+            ClientChannel::ClientMessages => 1
+        }
+    }
 }

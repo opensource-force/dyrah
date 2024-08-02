@@ -1,96 +1,70 @@
-use std::{
-    collections::VecDeque,
-    net::{SocketAddr, UdpSocket},
-    thread,
-    time::{Duration, Instant, SystemTime},
-};
+mod server;
 
-use dyhra::{ClientChannel, PlayerInput, ServerChannel, ServerMessages};
-use renet::{
-    transport::{
-        NetcodeServerTransport, ServerAuthentication, ServerConfig,
-    },
-    ConnectionConfig, RenetServer, ServerEvent,
-};
+use std::{thread, time::Duration};
 
-struct Server {
-    renet: RenetServer,
-    transport: NetcodeServerTransport,
-    last_updated: Instant,
-    message_queue: VecDeque<Vec<u8>>
-}
-
-impl Server {
-    fn new(public_addr: SocketAddr) -> Self {
-        let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        let server_config = ServerConfig {
-            current_time,
-            max_clients: 64,
-            protocol_id: 7,
-            public_addresses: vec![public_addr],
-            authentication: ServerAuthentication::Unsecure,
-        };
-        let socket: UdpSocket = UdpSocket::bind(public_addr).unwrap();
-
-        Self {
-            renet: RenetServer::new(ConnectionConfig::default()),
-            transport: NetcodeServerTransport::new(server_config, socket).unwrap(),
-            last_updated: Instant::now(),
-            message_queue: VecDeque::new()
-        }
-    }
-
-    fn update(&mut self) {
-        let now = Instant::now();
-        let duration = now - self.last_updated;
-        self.last_updated = now;
-
-        self.renet.update(duration);
-        self.transport.update(duration, &mut self.renet).unwrap();
-
-        while let Some(event) = self.renet.get_event() {
-            match event {
-                ServerEvent::ClientConnected { client_id } => {
-                    println!("Client {} connected.", client_id);
-
-                    let msg = bincode::serialize(&ServerMessages::PlayerCreate { id: client_id.into() }).unwrap();
-                    
-                    self.message_queue.push_back(msg);
-                    //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
-                }
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    println!("Client {} disconnected: {}", client_id, reason);
-                    
-                    let msg = bincode::serialize(&ServerMessages::PlayerDelete { id: client_id.into() }).unwrap();
-
-                    self.message_queue.push_back(msg);
-                    //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
-                }
-            }
-        }
-
-        for client_id in self.renet.clients_id() {
-            while let Some(msg) = self.renet.receive_message(client_id, ClientChannel::Input) {
-                let input: PlayerInput = bincode::deserialize(&msg).unwrap();
-
-                // handle input
-            }
-        }
-
-        if let Some(msg) = self.message_queue.pop_back() {
-            self.renet.broadcast_message(ServerChannel::ServerMessages, msg.to_vec());
-        }
-
-        self.transport.send_packets(&mut self.renet);
-
-        thread::sleep(Duration::from_millis(50));
-    }
-}
+use dyhra::{ClientInput, ClientMessages, Position, ServerChannel, ServerMessages};
+use server::Server;
 
 fn main() {
     let mut server = Server::new("127.0.0.1:6667".parse().unwrap());
 
     loop {
         server.update();
+        
+        if let Some(client_id) = server.on_client_connect() {
+            println!("Client {} connected.", client_id);
+
+            //self.lobby.insert(client_id, player);
+
+            let msg = bincode::serialize(
+                &ServerMessages::PlayerCreate {
+                    id: client_id.into(),
+                    pos: Position {
+                        x: 0.0,
+                        y: 0.0
+                    }
+                }
+            ).unwrap();
+            
+            server.message_queue.push_back(msg);
+            //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);   
+        } else if let Some((client_id, reason)) = server.on_client_disconnect() {
+            println!("Client {} disconnected: {}", client_id, reason);
+                    
+            //self.lobby.remove(&client_id);
+
+            let msg = bincode::serialize(&ServerMessages::PlayerDelete { id: client_id.into() }).unwrap();
+
+            server.message_queue.push_back(msg);
+            //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
+        }
+
+        while let Some((client_id, client_input)) = server.get_client_input() {
+            match client_input {
+                ClientInput { left, up, down, right } => {
+                    let x = (right as i8 - left as i8) as f32;
+                    let y = (down as i8 - up as i8) as f32;
+
+                    let msg = bincode::serialize(
+                        &ServerMessages::PlayerUpdate {
+                            id: client_id.into(),
+                            pos: Position { x, y }
+                        }
+                    ).unwrap();
+                    
+                    server.renet.send_message(client_id, ServerChannel::ServerMessages, msg);
+                }
+            }
+        }
+
+        while let Some((client_id, client_msg)) = server.get_client_msg() {
+            match client_msg {
+                ClientMessages::PlayerCommand { id } => {
+                    // handle commands
+                }
+            }
+        }
+
+        thread::sleep(Duration::from_millis(50));
     }
 }
