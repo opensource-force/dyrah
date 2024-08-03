@@ -12,7 +12,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(server_addr: SocketAddr) -> Self {
+    pub fn new(server_addr: SocketAddr) -> (ClientId, Self) {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
         let client_id = current_time.as_millis() as u64;
@@ -23,12 +23,12 @@ impl Client {
             protocol_id: 7
         };
     
-        Self {
+        (ClientId::from_raw(client_id), Self {
             renet: RenetClient::new(ConnectionConfig::default()),
             transport: NetcodeClientTransport::new(current_time, authentication, socket).unwrap(),
             last_updated: Instant::now(),
             lobby: HashMap::new()
-        }
+        })
     }
 
     pub fn update(&mut self) {

@@ -21,25 +21,15 @@ fn main() {
 
             server.lobby.insert(client_id, player);
 
-            let msg = bincode::serialize(
-                &ServerMessages::PlayerCreate {
-                    id: client_id.into(),
-                    pos: player.pos
-                }
-            ).unwrap();
-            
-            server.message_queue.push_back(msg);
-            //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
-
             for (id, other_player) in &server.lobby {
-                let update_msg = bincode::serialize(
+                let msg = bincode::serialize(
                     &ServerMessages::PlayerCreate {
                         id: SerializableClientId::from(*id),
-                        pos: other_player.pos,
+                        player: *other_player
                     }
                 ).unwrap();
 
-                server.renet.send_message(client_id, ServerChannel::ServerMessages, update_msg);
+                server.message_queue.push_back(msg);
             }
 
         } else if let Some((client_id, reason)) = server.on_client_disconnect() {
@@ -50,7 +40,6 @@ fn main() {
             let msg = bincode::serialize(&ServerMessages::PlayerDelete { id: client_id.into() }).unwrap();
 
             server.message_queue.push_back(msg);
-            //self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
         }
 
         while let Some((client_id, input)) = server.get_client_input() {

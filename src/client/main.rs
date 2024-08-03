@@ -1,14 +1,20 @@
 mod client;
+mod map;
 
 use client::Client;
-use dyhra::{ClientChannel, ClientInput, Player, ServerMessages};
-use macroquad::{color::{RED, SKYBLUE}, input::{is_key_down, KeyCode}, shapes::draw_rectangle, window::{clear_background, next_frame}};
+use dyhra::{ClientChannel, ClientInput, ServerMessages};
+use macroquad::prelude::*;
+use map::{Map, TILE_SIZE};
 use renet::ClientId;
 
 #[macroquad::main("Dyhra")]
 async fn main() {
-    let mut client = Client::new("127.0.0.1:6667".parse().unwrap());
-
+    let (client_id, mut client) = Client::new("127.0.0.1:6667".parse().unwrap());
+    let mut map = Map::new("assets/map.json", "assets/tiles.png").await;
+    let mut camera = Camera2D::from_display_rect(Rect::new(
+        0.0, 0.0, screen_width(), -screen_height()
+    ));
+    let player_texture = load_texture("assets/32rogues/rogues.png").await.unwrap();
 
     loop {
         clear_background(SKYBLUE);
@@ -16,10 +22,10 @@ async fn main() {
         if client.renet.is_connected() {
             while let Some(server_msg) = client.get_server_msg() {
                 match server_msg {
-                    ServerMessages::PlayerCreate { id, pos } => {
+                    ServerMessages::PlayerCreate { id, player } => {
                         println!("Player {} joined", ClientId::from(id));
 
-                        client.lobby.insert(id.into(), Player { pos });
+                        client.lobby.insert(id.into(), player);
                     }
                     ServerMessages::PlayerDelete { id } => {
                         println!("Player {} left", ClientId::from(id));
@@ -27,9 +33,19 @@ async fn main() {
                         client.lobby.remove(&id.into());
                     }
                     ServerMessages::PlayerUpdate { id, pos } => {
-                        // sync player pos with server player pos
                         if let Some(player) = client.lobby.get_mut(&id.into()) {
                             player.pos = pos;
+
+                            if ClientId::from(id) == client_id {
+                                map.update(&["base"], Rect::new(
+                                    player.pos.x - screen_width() / 2.0 - TILE_SIZE.x,
+                                    player.pos.y - screen_height() / 2.0 - TILE_SIZE.y,
+                                    screen_width() + TILE_SIZE.x,
+                                    screen_height() + TILE_SIZE.y,
+                                ));
+    
+                                camera.target = vec2(player.pos.x, player.pos.y);
+                            }
                         }
                     }
                 }
@@ -48,9 +64,16 @@ async fn main() {
             }
         }
 
+        map.draw();
+
         for player in client.lobby.values() {
-            draw_rectangle(player.pos.x, player.pos.y, 32.0, 32.0, RED);
+            draw_texture_ex(&player_texture, player.pos.x, player.pos.y, WHITE, DrawTextureParams {
+                source: Some(Rect::new(0.0, 4.0, TILE_SIZE.x, TILE_SIZE.y)),
+                ..Default::default()
+            })
         }
+
+        set_camera(&camera);
 
         client.update();
 

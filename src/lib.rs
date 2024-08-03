@@ -7,7 +7,7 @@ pub struct Position {
     pub y: f32
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Player {
     pub pos: Position
 }
@@ -24,7 +24,7 @@ pub enum ClientMessages {
 pub enum ServerMessages {
     PlayerCreate {
         id: SerializableClientId,
-        pos: Position
+        player: Player
     },
     PlayerDelete {
         id: SerializableClientId
