@@ -8,7 +8,7 @@ pub struct Client {
     pub renet: RenetClient,
     transport: NetcodeClientTransport,
     last_updated: Instant,
-    lobby: HashMap<ClientId, Player>
+    pub lobby: HashMap<ClientId, Player>
 }
 
 impl Client {

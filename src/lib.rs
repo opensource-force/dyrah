@@ -1,22 +1,15 @@
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Position {
     pub x: f32,
     pub y: f32
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Velocity {
-    pub x: f32,
-    pub y: f32
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Player {
-    pub pos: Position,
-    pub vel: Velocity
+    pub pos: Position
 }
 
 
@@ -64,7 +57,7 @@ pub enum ServerChannel {
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SerializableClientId(u64);
 
 
