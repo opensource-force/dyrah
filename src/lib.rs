@@ -1,3 +1,6 @@
+pub mod net;
+pub mod game;
+
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 

@@ -1,10 +1,5 @@
-mod client;
-mod map;
-
-use client::Client;
-use dyhra::{ClientChannel, ClientInput, ServerMessages};
+use dyhra::{game::map::{Map, TILE_SIZE}, net::client::Client, ClientChannel, ClientInput, ServerMessages};
 use macroquad::prelude::*;
-use map::{Map, TILE_SIZE};
 use renet::ClientId;
 
 #[macroquad::main("Dyhra")]
@@ -68,7 +63,7 @@ async fn main() {
 
         for player in client.lobby.values() {
             draw_texture_ex(&player_texture, player.pos.x, player.pos.y, WHITE, DrawTextureParams {
-                source: Some(Rect::new(0.0, 4.0, TILE_SIZE.x, TILE_SIZE.y)),
+                source: Some(Rect::new(0.0 * TILE_SIZE.x, 4.0 * TILE_SIZE.y, TILE_SIZE.x, TILE_SIZE.y)),
                 ..Default::default()
             })
         }

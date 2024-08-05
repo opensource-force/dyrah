@@ -4,12 +4,13 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use dyhra::{ClientChannel, ClientInput, ClientMessages, Player, ServerChannel};
 use renet::{
     transport::{
         NetcodeServerTransport, ServerAuthentication, ServerConfig,
     }, ClientId, ConnectionConfig, DisconnectReason, RenetServer, ServerEvent
 };
+
+use crate::{ClientChannel, ClientInput, ClientMessages, Player, ServerChannel};
 
 pub struct Server {
     pub renet: RenetServer,
@@ -50,7 +51,7 @@ impl Server {
 
         self.transport.send_packets(&mut self.renet);
 
-        if let Some(msg) = self.message_queue.pop_back() {
+        while let Some(msg) = self.message_queue.pop_back() {
             self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
         }
     }
@@ -83,7 +84,7 @@ impl Server {
 
     pub fn get_client_msg(&mut self) -> Option<(ClientId, ClientMessages)> {
         for client_id in self.renet.clients_id() {
-            if let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientMessages) {
+            while let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientMessages) {
                 let client_msg = bincode::deserialize(&msg).unwrap();
 
                 return Some((client_id, client_msg));
@@ -95,7 +96,7 @@ impl Server {
 
     pub fn get_client_input(&mut self) -> Option<(ClientId, ClientInput)> {
         for client_id in self.renet.clients_id() {
-            if let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientInput) {
+            while let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientInput) {
                 let client_input = bincode::deserialize(&msg).unwrap();
 
                 return Some((client_id, client_input))

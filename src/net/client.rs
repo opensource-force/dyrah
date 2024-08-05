@@ -1,8 +1,9 @@
 
 use std::{collections::HashMap, net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}};
 
-use dyhra::{Player, ServerChannel, ServerMessages};
 use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient};
+
+use crate::{Player, ServerChannel, ServerMessages};
 
 pub struct Client {
     pub renet: RenetClient,

@@ -1,9 +1,6 @@
-mod server;
-
 use std::{thread, time::Duration};
 
-use dyhra::{ClientMessages, Player, Position, SerializableClientId, ServerChannel, ServerMessages};
-use server::Server;
+use dyhra::{net::server::Server, ClientMessages, Player, Position, SerializableClientId, ServerChannel, ServerMessages};
 
 fn main() {
     let mut server = Server::new("127.0.0.1:6667".parse().unwrap());
@@ -11,6 +8,19 @@ fn main() {
     loop {        
         if let Some(client_id) = server.on_client_connect() {
             println!("Client {} connected.", client_id);
+
+            for (id, other_player) in &server.lobby {
+                if *id == client_id { continue; }
+                
+                let msg = bincode::serialize(
+                    &ServerMessages::PlayerCreate {
+                        id: SerializableClientId::from(*id),
+                        player: *other_player
+                    }
+                ).unwrap();
+
+                server.renet.send_message(*id, ServerChannel::ServerMessages, msg);   
+            }
 
             let player = Player {
                 pos: Position {
@@ -21,17 +31,14 @@ fn main() {
 
             server.lobby.insert(client_id, player);
 
-            for (id, other_player) in &server.lobby {
-                let msg = bincode::serialize(
-                    &ServerMessages::PlayerCreate {
-                        id: SerializableClientId::from(*id),
-                        player: *other_player
-                    }
-                ).unwrap();
+            let msg = bincode::serialize(
+                &ServerMessages::PlayerCreate {
+                    id: SerializableClientId::from(client_id),
+                    player
+                }
+            ).unwrap();
 
-                server.message_queue.push_back(msg);
-            }
-
+            server.message_queue.push_back(msg);
         } else if let Some((client_id, reason)) = server.on_client_disconnect() {
             println!("Client {} disconnected: {}", client_id, reason);
                     
@@ -61,7 +68,7 @@ fn main() {
                 }
             ).unwrap();
             
-            server.renet.broadcast_message(ServerChannel::ServerMessages, msg);
+            server.message_queue.push_back(msg);
         }
 
         while let Some((client_id, client_msg)) = server.get_client_msg() {
