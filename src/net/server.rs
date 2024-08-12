@@ -1,23 +1,20 @@
 use std::{
-    collections::{HashMap, VecDeque},
-    net::{SocketAddr, UdpSocket},
-    time::{Instant, SystemTime},
+   net::{SocketAddr, UdpSocket},
+   thread, time::{Duration, Instant, SystemTime}
 };
 
 use renet::{
-    transport::{
-        NetcodeServerTransport, ServerAuthentication, ServerConfig,
-    }, ClientId, ConnectionConfig, DisconnectReason, RenetServer, ServerEvent
+    transport::{NetcodeServerTransport, ServerAuthentication, ServerConfig,},
+    ClientId, ConnectionConfig, DisconnectReason, RenetServer, ServerEvent
 };
+use serde::Serialize;
 
-use crate::{ClientChannel, ClientInput, ClientMessages, Player, ServerChannel};
+use crate::{ClientChannel, ClientInput, ClientMessages, ServerChannel};
 
 pub struct Server {
-    pub renet: RenetServer,
+    renet: RenetServer,
     transport: NetcodeServerTransport,
-    last_updated: Instant,
-    pub message_queue: VecDeque<Vec<u8>>,
-    pub lobby: HashMap<ClientId, Player>
+    last_updated: Instant
 }
 
 impl Server {
@@ -35,13 +32,11 @@ impl Server {
         Self {
             renet: RenetServer::new(ConnectionConfig::default()),
             transport: NetcodeServerTransport::new(server_config, socket).unwrap(),
-            last_updated: Instant::now(),
-            message_queue: VecDeque::new(),
-            lobby: HashMap::new()
+            last_updated: Instant::now()
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, fps: u64) {
         let now = Instant::now();
         let duration = now - self.last_updated;
         self.last_updated = now;
@@ -51,9 +46,7 @@ impl Server {
 
         self.transport.send_packets(&mut self.renet);
 
-        while let Some(msg) = self.message_queue.pop_back() {
-            self.renet.broadcast_message(ServerChannel::ServerMessages, msg);
-        }
+        thread::sleep(Duration::from_millis(1000 / fps));
     }
 
     pub fn on_client_connect(&mut self) -> Option<ClientId> {
@@ -84,7 +77,7 @@ impl Server {
 
     pub fn get_client_msg(&mut self) -> Option<(ClientId, ClientMessages)> {
         for client_id in self.renet.clients_id() {
-            while let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientMessages) {
+            if let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientMessages) {
                 let client_msg = bincode::deserialize(&msg).unwrap();
 
                 return Some((client_id, client_msg));
@@ -96,7 +89,7 @@ impl Server {
 
     pub fn get_client_input(&mut self) -> Option<(ClientId, ClientInput)> {
         for client_id in self.renet.clients_id() {
-            while let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientInput) {
+            if let Some(msg) = self.renet.receive_message(client_id, ClientChannel::ClientInput) {
                 let client_input = bincode::deserialize(&msg).unwrap();
 
                 return Some((client_id, client_input))
@@ -104,5 +97,17 @@ impl Server {
         }
 
         None
+    }
+
+    pub fn send<T: Serialize>(&mut self, id: ClientId, msg: T) {
+        let serial_msg = bincode::serialize(&msg).unwrap();
+
+        self.renet.send_message(id, ServerChannel::ServerMessages, serial_msg);
+    }
+
+    pub fn broadcast<T: Serialize>(&mut self, msg: T) {
+        let serial_msg = bincode::serialize(&msg).unwrap();
+
+        self.renet.broadcast_message(ServerChannel::ServerMessages, serial_msg);
     }
 }

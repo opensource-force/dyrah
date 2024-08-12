@@ -1,5 +1,10 @@
 use std::{ffi::OsStr, path::Path};
-use macroquad::{file::load_string, math::{vec2, Rect, Vec2}, texture::{load_texture, FilterMode}};
+
+use macroquad::{
+    file::load_string,
+    math::{vec2, Rect, Vec2},
+    texture::{load_texture, FilterMode}
+};
 use macroquad_tiled as tiled;
 
 pub const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
@@ -77,12 +82,12 @@ impl Map {
 
     pub fn get_tile(&self, x: f32, y: f32) -> Option<&Tile> {
         for tile in &self.chunk {
-            if x >= tile.rect.x && x < tile.rect.x + tile.rect.w &&
-               y >= tile.rect.y && y < tile.rect.y + tile.rect.h {
+            if tile.rect.contains(vec2(x, y)) {
                 return Some(&tile)
+
             }
         }
 
-        return None
+        None
     }
 }

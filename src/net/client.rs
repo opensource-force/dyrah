@@ -1,15 +1,19 @@
+use std::{
+    net::{SocketAddr, UdpSocket},
+    time::{Instant, SystemTime}
+};
 
-use std::{collections::HashMap, net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}};
+use renet::{
+    transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient
+};
+use serde::Serialize;
 
-use renet::{transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient};
-
-use crate::{Player, ServerChannel, ServerMessages};
+use crate::{ClientChannel, ServerChannel, ServerMessages};
 
 pub struct Client {
     pub renet: RenetClient,
     transport: NetcodeClientTransport,
-    last_updated: Instant,
-    pub lobby: HashMap<ClientId, Player>
+    last_updated: Instant
 }
 
 impl Client {
@@ -27,8 +31,7 @@ impl Client {
         (ClientId::from_raw(client_id), Self {
             renet: RenetClient::new(ConnectionConfig::default()),
             transport: NetcodeClientTransport::new(current_time, authentication, socket).unwrap(),
-            last_updated: Instant::now(),
-            lobby: HashMap::new()
+            last_updated: Instant::now()
         })
     }
 
@@ -50,5 +53,9 @@ impl Client {
             }
 
         None
+    }
+
+    pub fn send(&mut self, channel_id: ClientChannel,  msg: Vec<u8>) {
+        self.renet.send_message(channel_id, msg);
     }
 }

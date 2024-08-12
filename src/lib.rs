@@ -1,39 +1,49 @@
 pub mod net;
 pub mod game;
 
+use std::ops::AddAssign;
+
+use macroquad::math::Vec2;
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Position {
     pub x: f32,
     pub y: f32
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct Player {
-    pub pos: Position
+impl From<Position> for Vec2 {
+    fn from(pos: Position) -> Self {
+        Self { x: pos.x, y: pos.y }
+    }
 }
 
+impl AddAssign for Position {
+    fn add_assign(&mut self, pos: Position) {
+        self.x += pos.x;
+        self.y += pos.y;
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientMessages {
     PlayerCommand {
-        id: SerializableClientId
+        id: EntityId
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServerMessages {
     PlayerCreate {
-        id: SerializableClientId,
-        player: Player
+        id: EntityId,
+        pos: Position
     },
     PlayerDelete {
-        id: SerializableClientId
+        id: EntityId
     },
     PlayerUpdate {
-        id: SerializableClientId,
+        id: EntityId,
         pos: Position
     }
 }
@@ -59,23 +69,25 @@ pub enum ServerChannel {
     NetworkedEntities
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EntityId(u64);
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct SerializableClientId(u64);
+impl EntityId {
+    pub fn from_raw(id: u64) -> Self { Self(id) }
+    pub fn raw(&self) -> u64 { self.0 }
+}
 
-
-impl From<ClientId> for SerializableClientId {
-    fn from(client_id: ClientId) -> Self {
-        SerializableClientId(client_id.raw())
+impl From<ClientId> for EntityId {
+    fn from(id: ClientId) -> Self {
+        Self::from_raw(id.raw())
     }
 }
 
-impl From<SerializableClientId> for ClientId {
-    fn from(serializable_id: SerializableClientId) -> Self {
-        ClientId::from_raw(serializable_id.0)
+impl From<EntityId> for ClientId {
+    fn from(id: EntityId) -> Self {
+        Self::from_raw(id.raw())
     }
 }
-
 
 impl From<ServerChannel> for u8 {
     fn from(channel_id: ServerChannel) -> Self {
