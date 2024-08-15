@@ -19,6 +19,12 @@ impl From<Position> for Vec2 {
     }
 }
 
+impl From<Vec2> for Position {
+    fn from(pos: Vec2) -> Self {
+        Self { x: pos.x, y: pos.y }
+    }
+}
+
 impl AddAssign for Position {
     fn add_assign(&mut self, pos: Position) {
         self.x += pos.x;
