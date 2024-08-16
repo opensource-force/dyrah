@@ -25,3 +25,10 @@ serde = { version = "1.0.204", features = ["derive"] }
 #egui-winit = "0.27.2"
 #wgpu = "0.20.1"
 #winit = "0.30.2"
+
+[profile.release]
+strip = true
+codegen-units = 1
+opt-level = "z"
+lto = true
+panic = "abort"
