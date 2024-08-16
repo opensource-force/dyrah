@@ -80,9 +80,9 @@ impl Map {
         }
     }
 
-    pub fn get_tile(&self, x: f32, y: f32) -> Option<&Tile> {
+    pub fn get_tile(&self, pos: Vec2) -> Option<&Tile> {
         for tile in &self.chunk {
-            if tile.rect.contains(vec2(x, y)) {
+            if tile.rect.contains(pos) {
                 return Some(&tile)
 
             }

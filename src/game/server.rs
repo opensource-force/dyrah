@@ -1,16 +1,11 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::{net::server::Server, ClientMessages, EntityId, Position, ServerMessages};
-
-#[derive(Default, Clone, Copy)]
-pub struct ServerPlayer {
-    pos: Position
-}
+use crate::{net::server::Server, ClientMessages, EntityId, Player, Position, ServerMessages};
 
 pub struct Game {
     server: Server,
     msg_queue: VecDeque<ServerMessages>,
-    lobby: HashMap<EntityId, ServerPlayer>
+    lobby: HashMap<EntityId, Player>
 }
 
 impl Game {
@@ -34,7 +29,7 @@ impl Game {
                 self.server.send(client_id, msg);
             }
 
-            let player = ServerPlayer::default();
+            let player = Player::default();
             self.lobby.insert(client_id.into(), player);
 
             let msg = ServerMessages::PlayerCreate {
@@ -53,10 +48,14 @@ impl Game {
 
         while let Some((client_id, input)) = self.server.get_client_input() {
             let player = self.lobby.get_mut(&client_id.into()).unwrap();
-
             let x = (input.right as i8 - input.left as i8) as f32;
             let y = (input.down as i8 - input.up as i8) as f32;
-            player.pos += Position { x, y };
+
+            if let Some(mouse_pos) = input.mouse_pos {
+                player.pos = mouse_pos;
+            } else {
+                player.pos += Position { x, y };
+            }
 
             let msg = &ServerMessages::PlayerUpdate {
                 id: client_id.into(),

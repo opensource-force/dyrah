@@ -6,7 +6,6 @@ use std::{
 use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient
 };
-use serde::Serialize;
 
 use crate::{ClientChannel, ServerChannel, ServerMessages};
 
