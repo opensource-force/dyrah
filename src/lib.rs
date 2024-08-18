@@ -7,12 +7,6 @@ use macroquad::math::Vec2;
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, Copy)]
-pub struct Player {
-    pos: Position,
-    target_pos: Position
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Position {
     pub x: f32,
@@ -55,6 +49,10 @@ pub enum ServerMessages {
         id: EntityId
     },
     PlayerUpdate {
+        id: EntityId,
+        pos: Position
+    },
+    EnemyCreate {
         id: EntityId,
         pos: Position
     }

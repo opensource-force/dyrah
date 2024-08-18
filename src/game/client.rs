@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use macroquad::prelude::*;
-use renet::ClientId;
 
-use crate::{net::client::Client, ClientChannel, ClientInput, EntityId, Player, ServerMessages};
+use crate::{game::world::EntityKind, net::client::Client, ClientChannel, ClientInput, EntityId, Position, ServerMessages};
 
-use super::{camera::Viewport, map::{Map, TILE_SIZE}};
+use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
 
 struct PlayerResources {
     id: EntityId,
@@ -14,7 +11,7 @@ struct PlayerResources {
 
 pub struct Game {
     client: Client,
-    lobby: HashMap<EntityId, Player>,
+    world: World,
     viewport: Viewport,
     map: Map,
     player_res: PlayerResources
@@ -26,7 +23,7 @@ impl Game {
 
         Self {
             client,
-            lobby: HashMap::new(),
+            world: World::default(),
             viewport: Viewport::new(screen_width(), screen_height()),
             map: Map::new("assets/map.json", "assets/tiles.png").await,
             player_res: PlayerResources {
@@ -40,31 +37,36 @@ impl Game {
         while let Some(server_msg) = self.client.get_server_msg() {
             match server_msg {
                 ServerMessages::PlayerCreate { id, pos } => {
-                    println!("Player {} joined", ClientId::from(id));
-    
-                    self.lobby.insert(id.into(), Player { pos, target_pos: pos });
+                    println!("Player {} spawned", id.raw());
+
+                    self.world.spawn_entity_at(id, EntityKind::Player, pos);
                 }
                 ServerMessages::PlayerDelete { id } => {
-                    println!("Player {} left", ClientId::from(id));
-    
-                    self.lobby.remove(&id.into());
+                    println!("Player {} despawned", id.raw());
+                    
+                    self.world.despawn_entity(id);
                 }
                 ServerMessages::PlayerUpdate { id, pos } => {
-                    if let Some(player) = self.lobby.get_mut(&id) {
+                    if let Some(player) = self.world.entities.get_mut(&id) {
                         if let Some(tile) = self.map.get_tile(pos.into()) {
                             player.target_pos = tile.rect.center().into();
                         }
                     }
                 }
+                ServerMessages::EnemyCreate { id, pos } => {
+                    println!("Enemy {} spawned", id.raw());
+
+                    self.world.spawn_entity_at(id, EntityKind::Enemy, pos);
+                }
             }
         }
     
-        for (player_id, player) in self.lobby.iter_mut() {
-            let pos = Vec2::from(player.pos);
+        for (player_id, player) in &mut self.world.entities_with_kind(EntityKind::Player) {
+            let start_pos = Vec2::from(player.pos);
             let target_pos = Vec2::from(player.target_pos);
             let speed = 5.0;
 
-            player.pos = pos.lerp(target_pos, speed * get_frame_time()).into();
+            player.pos = start_pos.lerp(target_pos, speed * get_frame_time()).into();
             
             if self.player_res.id == *player_id {
                 let mouse_pos = if is_mouse_button_released(MouseButton::Left) {
@@ -88,14 +90,21 @@ impl Game {
                 }
 
                 self.map.update(&["base"], Rect::new(
-                    player.pos.x - screen_width() / 2.0 - TILE_SIZE.x,
-                    player.pos.y - screen_height() / 2.0 - TILE_SIZE.y,
-                    screen_width() + TILE_SIZE.x,
-                    screen_height() + TILE_SIZE.y
+                    player.pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
+                    player.pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
+                    screen_width() + TILE_SIZE.x * 2.0,
+                    screen_height() + TILE_SIZE.y * 2.0
                 ));
     
-                self.viewport.update(player.pos.x, player.pos.y, screen_width(), screen_height());
+                self.viewport.update(player.pos.into(), screen_width(), screen_height());
             }
+        }
+
+        for (_, enemy) in self.world.entities_with_kind(EntityKind::Enemy) {
+            enemy.pos += Position {
+                x: rand::gen_range(-1.0, 1.0),
+                y: rand::gen_range(-1.0, 1.0),
+            };
         }
     
         self.client.update();
@@ -104,7 +113,7 @@ impl Game {
     pub fn draw(&mut self) {
         self.map.draw();
 
-        for player in self.lobby.values() {
+        for (_, player) in self.world.entities_with_kind(EntityKind::Player) {
             draw_texture_ex(
                 &self.player_res.tex,
                 player.pos.x, player.pos.y,
@@ -113,8 +122,32 @@ impl Game {
                     ..Default::default()
                 }
             );
+
+            draw_rectangle_lines(player.pos.x, player.pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, GREEN); 
+            draw_rectangle_lines(player.target_pos.x, player.target_pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, BLUE);
         }
 
         self.viewport.draw();
+
+        let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
+        draw_rectangle_lines(
+            mouse_pos.x - TILE_OFFSET.x,
+            mouse_pos.y - TILE_OFFSET.y,
+            TILE_SIZE.x, TILE_SIZE.y,
+            2.0, ORANGE
+        );
+
+        for (_, enemy) in self.world.entities_with_kind(EntityKind::Enemy) {
+            draw_texture_ex(
+                &self.player_res.tex,
+                enemy.pos.x, enemy.pos.y,
+                WHITE, DrawTextureParams {
+                    source: Some(Rect::new(64.0, 128.0, TILE_SIZE.x, TILE_SIZE.y)),
+                    ..Default::default()
+                }
+            );
+
+            draw_rectangle_lines(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, RED);
+        }
     }
 }

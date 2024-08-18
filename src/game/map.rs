@@ -8,6 +8,7 @@ use macroquad::{
 use macroquad_tiled as tiled;
 
 pub const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
+pub const TILE_OFFSET: Vec2 = vec2(16.0, 16.0);
 
 pub struct Tile {
     id: u32,

@@ -1,4 +1,4 @@
-use macroquad::{camera::{set_camera, Camera2D}, math::{vec2, Rect}};
+use macroquad::{camera::{set_camera, Camera2D}, math::{Rect, Vec2}};
 
 pub struct Viewport {
     pub camera: Camera2D,
@@ -15,13 +15,13 @@ impl Viewport {
         }
     }
 
-    pub fn update(&mut self, x: f32, y: f32, width: f32, height: f32) {
+    pub fn update(&mut self, pos: Vec2, width: f32, height: f32) {
         if width != self.width || height != self.height {
             self.camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, width, -height));
             (self.width, self.height) = (width, height);
         }
         
-        self.camera.target = vec2(x, y);
+        self.camera.target = pos;
     }
 
     pub fn draw(&self) {
