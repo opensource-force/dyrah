@@ -50,7 +50,8 @@ pub enum ServerMessages {
     },
     PlayerUpdate {
         id: EntityId,
-        pos: Position
+        pos: Position,
+        target: EntityId
     },
     EnemyCreate {
         id: EntityId,
@@ -65,7 +66,8 @@ pub struct ClientInput {
     pub up: bool,
     pub down: bool,
     pub right: bool,
-    pub mouse_pos: Option<Position>
+    pub mouse_pos: Option<Position>,
+    pub mouse_target: Option<EntityId>
 }
 
 
@@ -80,7 +82,7 @@ pub enum ServerChannel {
     NetworkedEntities
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct EntityId(u64);
 
 impl EntityId {

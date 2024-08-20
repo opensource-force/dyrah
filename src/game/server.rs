@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{game::world::EntityKind, net::server::Server, ClientMessages, EntityId, Position, ServerMessages};
+use crate::{net::server::Server, ClientMessages, EntityId, Position, ServerMessages};
 
 use super::{map::TILE_SIZE, world::World};
 
@@ -15,9 +15,7 @@ impl Game {
         let mut world = World::default();
 
         for i in 1..4 {
-            world.spawn_entity_at(
-                EntityId::from_raw(i),
-                EntityKind::Enemy,
+            world.spawn_enemy_at(
                 Position { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y }
             );
         }
@@ -33,21 +31,23 @@ impl Game {
         if let Some(client_id) = self.server.on_client_connect() {
             println!("Client {} connected.", client_id);
 
-            for (id, other_entity) in &self.world.entities {
-                let msg =  match other_entity.kind {
-                    EntityKind::Player => ServerMessages::PlayerCreate {
-                        id: *id,
-                        pos: other_entity.pos,
-                    },
-                    EntityKind::Enemy => ServerMessages::EnemyCreate {
-                        id: *id,
-                        pos: other_entity.pos,
-                    }
+            for (id, enemy) in &self.world.enemies {
+                let msg = ServerMessages::EnemyCreate {
+                    id: *id,
+                    pos: enemy.pos,
                 };
                 self.server.send(client_id, msg);
             }
 
-            let player = self.world.spawn_entity(client_id.into(), EntityKind::Player);
+            for (id, other_player) in &self.world.players {
+                let msg = ServerMessages::PlayerCreate {
+                    id: *id,
+                    pos: other_player.pos,
+                };
+                self.server.send(client_id, msg);
+            }
+
+            let player = self.world.spawn_player(client_id.into());
             let msg = ServerMessages::PlayerCreate { id: client_id.into(), pos: player.pos };
             self.msg_queue.push_back(msg);
         } else if let Some((client_id, reason)) = self.server.on_client_disconnect() {
@@ -60,7 +60,7 @@ impl Game {
         }
 
         while let Some((client_id, input)) = self.server.get_client_input() {
-            let player = self.world.entities.get_mut(&client_id.into()).unwrap();
+            let player = self.world.players.get_mut(&client_id.into()).unwrap();
             let x = (input.right as i8 - input.left as i8) as f32;
             let y = (input.down as i8 - input.up as i8) as f32;
 
@@ -70,9 +70,14 @@ impl Game {
                 player.pos += Position { x, y };
             }
 
+            if let Some(mouse_target) = input.mouse_target {
+                player.target = mouse_target;
+            }
+
             let msg = &ServerMessages::PlayerUpdate {
                 id: client_id.into(),
-                pos: player.pos
+                pos: player.pos,
+                target: player.target
             };
             self.server.broadcast(msg);
         }

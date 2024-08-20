@@ -2,61 +2,69 @@ use std::collections::HashMap;
 
 use crate::{EntityId, Position};
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub enum EntityKind {
-    #[default]
-    Player,
-    Enemy
-}
-
 #[derive(Default, Clone, Copy)]
 pub struct Entity {
-    pub kind: EntityKind,
     pub pos: Position,
-    pub target_pos: Position
+    pub target_pos: Position,
+    pub target: EntityId
 }
 
 impl Entity {
-    pub fn from_kind(kind: EntityKind) -> Self {
+    pub fn from_pos(pos: Position) -> Self {
         Self {
-            kind,
-            pos: Position::default(),
-            target_pos: Position::default()
+            pos,
+            target_pos: Position::default(),
+            target: EntityId::default()
         }
     }
 }
 
 #[derive(Default)]
 pub struct World {
-    pub entities: HashMap<EntityId, Entity>
+    next_id: u64,
+    pub players: HashMap<EntityId, Entity>,
+    pub enemies: HashMap<EntityId, Entity>
 }
 
 impl World {
-    pub fn spawn_entity(&mut self, id: EntityId, kind: EntityKind) -> Entity {
-        let entity = Entity::from_kind(kind);
+    pub fn spawn_player(&mut self, id: EntityId) -> Entity {
+        let player = Entity::default();
 
-        self.entities.insert(id, entity);
+        self.players.insert(id, player);
 
-        entity
+        player
     }
 
-    pub fn spawn_entity_at(&mut self, id: EntityId, kind: EntityKind, pos: Position) -> Entity {
-        let entity = Entity {
-            kind,
-            pos,
-            target_pos: Position::default()
-        };
+    pub fn spawn_player_at(&mut self, id: EntityId, pos: Position) -> Entity {
+        let player = Entity::from_pos(pos);
 
-        self.entities.insert(id, entity);
+        self.players.insert(id, player);
 
-        entity
+        player
     }
 
     pub fn despawn_entity(&mut self, id: EntityId) {
-        self.entities.remove(&id);
+        self.players.remove(&id);
+        self.enemies.remove(&id);
     }
 
-    pub fn entities_with_kind(&mut self, kind: EntityKind) -> impl Iterator<Item = (&EntityId, &mut Entity)> {
-        self.entities.iter_mut().filter(move |(_, entity)| entity.kind == kind)
+    pub fn spawn_enemy(&mut self) -> Entity {
+        let id = EntityId::from_raw(self.next_id);
+        self.next_id += 1;
+
+        let enemy = Entity::default();
+        self.enemies.insert(id, enemy);
+
+        enemy
+    }
+
+    pub fn spawn_enemy_at(&mut self, pos: Position) -> Entity {
+        let id = EntityId::from_raw(self.next_id);
+        self.next_id += 1;
+
+        let enemy = Entity::from_pos(pos);
+        self.enemies.insert(id, enemy);
+
+        enemy
     }
 }
