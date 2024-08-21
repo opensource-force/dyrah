@@ -71,7 +71,7 @@ impl Game {
             player.pos = start_pos.lerp(target_pos, speed * get_frame_time()).into();
             
             if self.player_res.id == *player_id {
-                let mouse_pos = if is_mouse_button_released(MouseButton::Left) {
+                let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
                     Some(self.viewport.camera.screen_to_world(mouse_position().into()).into())
                 } else {
                     None
@@ -99,11 +99,11 @@ impl Game {
                     up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
                     down: is_key_down(KeyCode::S) || is_key_down(KeyCode::Down),
                     right: is_key_down(KeyCode::D) || is_key_down(KeyCode::Right),
-                    mouse_pos,
+                    mouse_target_pos,
                     mouse_target
                 };
             
-                if input.left || input.up || input.down || input.right || input.mouse_pos.is_some() {
+                if input.left || input.up || input.down || input.right || input.mouse_target_pos.is_some() || input.mouse_target.is_some() {
                     let msg = bincode::serialize(input).unwrap();
                     
                     self.client.send(ClientChannel::ClientInput, msg);

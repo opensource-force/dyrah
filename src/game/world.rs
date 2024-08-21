@@ -49,8 +49,8 @@ impl World {
     }
 
     pub fn spawn_enemy(&mut self) -> Entity {
-        let id = EntityId::from_raw(self.next_id);
         self.next_id += 1;
+        let id = EntityId::from_raw(self.next_id);
 
         let enemy = Entity::default();
         self.enemies.insert(id, enemy);
@@ -59,8 +59,8 @@ impl World {
     }
 
     pub fn spawn_enemy_at(&mut self, pos: Position) -> Entity {
-        let id = EntityId::from_raw(self.next_id);
         self.next_id += 1;
+        let id = EntityId::from_raw(self.next_id);
 
         let enemy = Entity::from_pos(pos);
         self.enemies.insert(id, enemy);

@@ -64,8 +64,8 @@ impl Game {
             let x = (input.right as i8 - input.left as i8) as f32;
             let y = (input.down as i8 - input.up as i8) as f32;
 
-            if let Some(mouse_pos) = input.mouse_pos {
-                player.pos = mouse_pos;
+            if let Some(mouse_target_pos) = input.mouse_target_pos {
+                player.pos = mouse_target_pos;
             } else {
                 player.pos += Position { x, y };
             }

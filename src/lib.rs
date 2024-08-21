@@ -66,7 +66,7 @@ pub struct ClientInput {
     pub up: bool,
     pub down: bool,
     pub right: bool,
-    pub mouse_pos: Option<Position>,
+    pub mouse_target_pos: Option<Position>,
     pub mouse_target: Option<EntityId>
 }
 
