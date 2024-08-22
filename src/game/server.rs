@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{net::server::Server, ClientMessages, EntityId, Position, ServerMessages};
+use crate::{net::server::Server, ClientMessages, Position, ServerMessages};
 
 use super::{map::TILE_SIZE, world::World};
 
@@ -59,6 +59,24 @@ impl Game {
             self.msg_queue.push_back(msg);
         }
 
+        self.handle_player_input();
+
+        while let Some((client_id, client_msg)) = self.server.get_client_msg() {
+            match client_msg {
+                ClientMessages::PlayerCommand { id } => {
+                    todo!()
+                }
+            }
+        }
+
+        if let Some(msg) = self.msg_queue.pop_front() {
+            self.server.broadcast(msg);
+        }
+
+        self.server.update(20);
+    }
+
+    fn handle_player_input(&mut self) {
         while let Some((client_id, input)) = self.server.get_client_input() {
             let player = self.world.players.get_mut(&client_id.into()).unwrap();
             let x = (input.right as i8 - input.left as i8) as f32;
@@ -81,19 +99,5 @@ impl Game {
             };
             self.server.broadcast(msg);
         }
-
-        while let Some((client_id, client_msg)) = self.server.get_client_msg() {
-            match client_msg {
-                ClientMessages::PlayerCommand { id } => {
-                    todo!()
-                }
-            }
-        }
-
-        if let Some(msg) = self.msg_queue.pop_front() {
-            self.server.broadcast(msg);
-        }
-
-        self.server.update(20);
     }
 }

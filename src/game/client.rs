@@ -62,7 +62,67 @@ impl Game {
                 }
             }
         }
+
+        self.handle_player_input();
+        self.update_entities();
+        self.client.update();
+    }    
+
+    pub fn draw(&mut self) {
+        self.map.draw();
+        self.draw_entities();
+        self.viewport.draw();
+
+        let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
+        draw_rectangle_lines(
+            mouse_pos.x - TILE_OFFSET.x,
+            mouse_pos.y - TILE_OFFSET.y,
+                        TILE_SIZE.x, TILE_SIZE.y,
+            2.0, PURPLE
+        );
+    }
+
+    fn handle_player_input(&mut self) {
+        let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
+            Some(self.viewport.camera.screen_to_world(mouse_position().into()).into())
+        } else {
+            None
+        };
+
+        let mouse_target = if is_mouse_button_released(MouseButton::Right) {
+            let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
+        
+            self.world.enemies.iter()
+                .find_map(|(enemy_id, enemy)| {
+                    let enemy_rect = Rect::new(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y);
+                    
+                    if enemy_rect.contains(mouse_pos) {
+                        Some(*enemy_id)
+                    } else {
+                        None
+                    }
+                })
+        } else {
+            None
+        };
+        
+        let input = &ClientInput {
+            left: is_key_down(KeyCode::A) || is_key_down(KeyCode::Left),
+            up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
+            down: is_key_down(KeyCode::S) || is_key_down(KeyCode::Down),
+            right: is_key_down(KeyCode::D) || is_key_down(KeyCode::Right),
+            mouse_target_pos,
+            mouse_target
+        };
     
+        if input.left || input.up || input.down || input.right || input.mouse_target_pos.is_some() || input.mouse_target.is_some() {
+            let msg = bincode::serialize(input).unwrap();
+            
+            self.client.send(ClientChannel::ClientInput, msg);
+        }
+    }
+
+    fn update_entities(&mut self) {
         for (player_id, player) in &mut self.world.players {
             let start_pos = Vec2::from(player.pos);
             let target_pos = Vec2::from(player.target_pos);
@@ -71,43 +131,7 @@ impl Game {
             player.pos = start_pos.lerp(target_pos, speed * get_frame_time()).into();
             
             if self.player_res.id == *player_id {
-                let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
-                    Some(self.viewport.camera.screen_to_world(mouse_position().into()).into())
-                } else {
-                    None
-                };
-
-                let mouse_target = if is_mouse_button_released(MouseButton::Right) {
-                    let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
                 
-                    self.world.enemies.iter()
-                        .find_map(|(enemy_id, enemy)| {
-                            let enemy_rect = Rect::new(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y);
-                            
-                            if enemy_rect.contains(mouse_pos) {
-                                Some(*enemy_id)
-                            } else {
-                                None
-                            }
-                        })
-                } else {
-                    None
-                };
-                
-                let input = &ClientInput {
-                    left: is_key_down(KeyCode::A) || is_key_down(KeyCode::Left),
-                    up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
-                    down: is_key_down(KeyCode::S) || is_key_down(KeyCode::Down),
-                    right: is_key_down(KeyCode::D) || is_key_down(KeyCode::Right),
-                    mouse_target_pos,
-                    mouse_target
-                };
-            
-                if input.left || input.up || input.down || input.right || input.mouse_target_pos.is_some() || input.mouse_target.is_some() {
-                    let msg = bincode::serialize(input).unwrap();
-                    
-                    self.client.send(ClientChannel::ClientInput, msg);
-                }
 
                 self.map.update(&["base"], Rect::new(
                     player.pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
@@ -126,13 +150,9 @@ impl Game {
                 y: rand::gen_range(-1.0, 1.0),
             };
         }
-    
-        self.client.update();
-    }    
+    }
 
-    pub fn draw(&mut self) {
-        self.map.draw();
-
+    fn draw_entities(&mut self) {
         for (_, enemy) in self.world.enemies.iter() {
             draw_texture_ex(
                 &self.player_res.tex,
@@ -165,15 +185,5 @@ impl Game {
                 }
             }
         }
-
-        self.viewport.draw();
-
-        let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
-        draw_rectangle_lines(
-            mouse_pos.x - TILE_OFFSET.x,
-            mouse_pos.y - TILE_OFFSET.y,
-            TILE_SIZE.x, TILE_SIZE.y,
-            2.0, PURPLE
-        );
     }
 }
