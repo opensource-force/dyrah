@@ -1,4 +1,4 @@
-use macroquad::prelude::*;
+use macroquad::{prelude::*, ui::root_ui};
 
 use crate::{net::client::Client, ClientChannel, ClientInput, EntityId, ServerMessages, Vec2D};
 
@@ -77,7 +77,6 @@ impl Game {
         self.draw_entities();
         self.viewport.draw();
 
-
         let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
         draw_rectangle_lines(
             mouse_pos.x - TILE_OFFSET.x,
@@ -85,6 +84,17 @@ impl Game {
             TILE_SIZE.x, TILE_SIZE.y,
             2.0, PURPLE
         );
+
+        root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
+        root_ui().label(None, &format!("Mouse pos: ({:.2}, {:.2})", mouse_pos.x, mouse_pos.y));
+
+        if let Some(player) = self.world.players.get(&self.player_res.id) {
+            let tile_pos = player.pos / TILE_SIZE.into();
+            
+            root_ui().label(None, &format!("Map position: ({:.2}, {:.2})", player.pos.x, player.pos.y));
+            root_ui().label(None, &format!("Tile pos: ({:.2}, {:.2})", tile_pos.x, tile_pos.y));
+            root_ui().label(None, &format!("Player target pos: ({:.2}, {:.2})", player.target_pos.x, player.target_pos.y));
+        }
     }
 
     fn handle_player_input(&mut self) {

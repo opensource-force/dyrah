@@ -1,7 +1,7 @@
 pub mod net;
 pub mod game;
 
-use std::ops::{AddAssign, Mul};
+use std::ops::{AddAssign, Div, Mul};
 
 use macroquad::{color::Color, math::Vec2, shapes::draw_rectangle_lines};
 use renet::ClientId;
@@ -65,6 +65,17 @@ impl Mul<Vec2D> for Vec2D {
         Vec2D {
             x: self.x * other.x,
             y: self.y * other.y,
+        }
+    }
+}
+
+impl Div<Vec2D> for Vec2D {
+    type Output = Self;
+
+    fn div(self, other: Vec2D) -> Self::Output {
+        Self {
+            x: self.x / other.x,
+            y: self.y / other.y,
         }
     }
 }
