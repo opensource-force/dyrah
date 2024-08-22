@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{net::server::Server, ClientMessages, Position, ServerMessages};
+use crate::{net::server::Server, ClientMessages, ServerMessages, Vec2D};
 
 use super::{map::TILE_SIZE, world::World};
 
@@ -15,9 +15,8 @@ impl Game {
         let mut world = World::default();
 
         for i in 1..4 {
-            world.spawn_enemy_at(
-                Position { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y }
-            );
+            let mut enemy = world.spawn_enemy();
+            enemy.pos = Vec2D { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y };
         }
 
         Self {
@@ -79,25 +78,27 @@ impl Game {
     fn handle_player_input(&mut self) {
         while let Some((client_id, input)) = self.server.get_client_input() {
             let player = self.world.players.get_mut(&client_id.into()).unwrap();
-            let x = (input.right as i8 - input.left as i8) as f32;
-            let y = (input.down as i8 - input.up as i8) as f32;
+    
+            player.vel.x = (input.right as i8 - input.left as i8) as f32;
+            player.vel.y = (input.down as i8 - input.up as i8) as f32;
 
             if let Some(mouse_target_pos) = input.mouse_target_pos {
                 player.pos = mouse_target_pos;
             } else {
-                player.pos += Position { x, y };
+                player.pos += player.vel * TILE_SIZE.into();
             }
-
+    
             if let Some(mouse_target) = input.mouse_target {
                 player.target = mouse_target;
             }
-
-            let msg = &ServerMessages::PlayerUpdate {
+    
+            let msg = ServerMessages::PlayerUpdate {
                 id: client_id.into(),
                 pos: player.pos,
-                target: player.target
+                target: player.target,
             };
             self.server.broadcast(msg);
         }
     }
+    
 }

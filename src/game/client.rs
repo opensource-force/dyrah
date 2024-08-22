@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-use crate::{net::client::Client, ClientChannel, ClientInput, EntityId, Position, ServerMessages};
+use crate::{net::client::Client, ClientChannel, ClientInput, EntityId, ServerMessages, Vec2D};
 
 use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
 
@@ -39,7 +39,8 @@ impl Game {
                 ServerMessages::PlayerCreate { id, pos } => {
                     println!("Player {} spawned", id.raw());
 
-                    self.world.spawn_player_at(id, pos);
+                    let mut player = self.world.spawn_player(id);
+                    player.pos = pos;
                 }
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} despawned", id.raw());
@@ -49,7 +50,9 @@ impl Game {
                 ServerMessages::PlayerUpdate { id, pos, target } => {
                     if let Some(player) = self.world.players.get_mut(&id) {
                         if let Some(tile) = self.map.get_tile(pos.into()) {
-                            player.target_pos = tile.rect.center().into();
+                            if tile.walkable {
+                                player.target_pos = tile.rect.center().into();
+                            }
                         }
 
                         player.target = target;
@@ -58,7 +61,8 @@ impl Game {
                 ServerMessages::EnemyCreate { id, pos } => {
                     println!("Enemy {} spawned", id.raw());
 
-                    self.world.spawn_enemy_at(pos);
+                    let mut enemy = self.world.spawn_enemy();
+                    enemy.pos = pos;
                 }
             }
         }
@@ -73,11 +77,12 @@ impl Game {
         self.draw_entities();
         self.viewport.draw();
 
+
         let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
         draw_rectangle_lines(
             mouse_pos.x - TILE_OFFSET.x,
             mouse_pos.y - TILE_OFFSET.y,
-                        TILE_SIZE.x, TILE_SIZE.y,
+            TILE_SIZE.x, TILE_SIZE.y,
             2.0, PURPLE
         );
     }
@@ -105,7 +110,7 @@ impl Game {
         } else {
             None
         };
-        
+
         let input = &ClientInput {
             left: is_key_down(KeyCode::A) || is_key_down(KeyCode::Left),
             up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
@@ -145,7 +150,7 @@ impl Game {
         }
 
         for (_, enemy) in self.world.enemies.iter_mut() {
-            enemy.pos += Position {
+            enemy.pos += Vec2D {
                 x: rand::gen_range(-1.0, 1.0),
                 y: rand::gen_range(-1.0, 1.0),
             };
@@ -163,7 +168,7 @@ impl Game {
                 }
             );
 
-            draw_rectangle_lines(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, RED);
+            enemy.pos.draw_rect(TILE_SIZE, RED);
         }
 
         for (player_id, player) in self.world.players.iter() {
@@ -177,11 +182,11 @@ impl Game {
             );
 
             if *player_id == self.player_res.id {
-                draw_rectangle_lines(player.target_pos.x, player.target_pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, BLUE);
-                draw_rectangle_lines(player.pos.x, player.pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, GREEN); 
+                player.target_pos.draw_rect(TILE_SIZE, BLUE);
+                player.pos.draw_rect(TILE_SIZE, GREEN);
 
                 if let Some(player_target) = self.world.enemies.get(&player.target) {
-                    draw_rectangle_lines(player_target.pos.x, player_target.pos.y, TILE_SIZE.x, TILE_SIZE.y, 2.0, ORANGE);
+                    player_target.pos.draw_rect(TILE_SIZE, ORANGE);
                 }
             }
         }
