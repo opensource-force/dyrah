@@ -7,7 +7,8 @@ pub struct Entity {
     pub pos: Vec2D,
     pub vel: Vec2D,
     pub target_pos: Vec2D,
-    pub target: EntityId
+    pub target: Option<EntityId>,
+    pub health: f32
 }
 
 #[derive(Default)]
@@ -18,22 +19,20 @@ pub struct World {
 }
 
 impl World {
-    pub fn spawn_player(&mut self, id: EntityId) -> Entity {
+    pub fn spawn_player(&mut self, id: EntityId) -> &mut Entity {
         let player = Entity::default();
 
         self.players.insert(id, player);
-
-        player
+        self.players.get_mut(&id).unwrap()
     }
 
-    pub fn spawn_enemy(&mut self) -> Entity {
+    pub fn spawn_enemy(&mut self) -> &mut Entity {
         self.next_id += 1;
         let id = EntityId::from_raw(self.next_id);
 
         let enemy = Entity::default();
         self.enemies.insert(id, enemy);
-
-        enemy
+        self.enemies.get_mut(&id).unwrap()
     }
 
     pub fn despawn_entity(&mut self, id: EntityId) {

@@ -92,8 +92,8 @@ pub struct ClientInput {
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientMessages {
-    PlayerCommand {
-        id: EntityId
+    PlayerAttack {
+        target: EntityId
     }
 }
 
@@ -110,11 +110,19 @@ pub enum ServerMessages {
     PlayerUpdate {
         id: EntityId,
         pos: Vec2D,
-        target: EntityId
+        target: Option<EntityId>
     },
     EnemyCreate {
         id: EntityId,
-        pos: Vec2D
+        pos: Vec2D,
+        health: f32
+    },
+    EnemyDelete {
+        id: EntityId
+    },
+    EnemyUpdate {
+        id: EntityId,
+        health: f32
     }
 }
 

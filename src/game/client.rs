@@ -1,6 +1,6 @@
 use macroquad::{prelude::*, ui::root_ui};
 
-use crate::{net::client::Client, ClientChannel, ClientInput, EntityId, ServerMessages, Vec2D};
+use crate::{net::client::Client, ClientChannel, ClientInput, ClientMessages, EntityId, ServerMessages, Vec2D};
 
 use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
 
@@ -39,7 +39,7 @@ impl Game {
                 ServerMessages::PlayerCreate { id, pos } => {
                     println!("Player {} spawned", id.raw());
 
-                    let mut player = self.world.spawn_player(id);
+                    let player = self.world.spawn_player(id);
                     player.pos = pos;
                 }
                 ServerMessages::PlayerDelete { id } => {
@@ -58,11 +58,21 @@ impl Game {
                         player.target = target;
                     }
                 }
-                ServerMessages::EnemyCreate { id, pos } => {
+                ServerMessages::EnemyCreate { id, pos, health } => {
                     println!("Enemy {} spawned", id.raw());
 
-                    let mut enemy = self.world.spawn_enemy();
+                    let enemy = self.world.spawn_enemy();
                     enemy.pos = pos;
+                    enemy.health = health;
+                },
+                ServerMessages::EnemyDelete { id } => {
+                    println!("Enemy {} passed away", id.raw());
+
+                    self.world.despawn_entity(id);
+                },
+                ServerMessages::EnemyUpdate { id, health } => {
+                    let enemy = self.world.enemies.get_mut(&id).unwrap();
+                    enemy.health = health;
                 }
             }
         }
@@ -129,11 +139,9 @@ impl Game {
             mouse_target_pos,
             mouse_target
         };
-    
+
         if input.left || input.up || input.down || input.right || input.mouse_target_pos.is_some() || input.mouse_target.is_some() {
-            let msg = bincode::serialize(input).unwrap();
-            
-            self.client.send(ClientChannel::ClientInput, msg);
+            self.client.send(ClientChannel::ClientInput, input);
         }
     }
 
@@ -141,14 +149,17 @@ impl Game {
         for (player_id, player) in &mut self.world.players {
             let start_pos = Vec2::from(player.pos);
             let target_pos = Vec2::from(player.target_pos);
-            let speed = 5.0;
+            let speed = 2.5;
 
             player.pos = start_pos.lerp(target_pos, speed * get_frame_time()).into();
             
-            if self.player_res.id == *player_id {
-                
+            if let Some(target) = player.target {
+                let msg = ClientMessages::PlayerAttack { target };
+                self.client.send(ClientChannel::ClientMessages, msg);
+            }
 
-                self.map.update(&["base"], Rect::new(
+            if self.player_res.id == *player_id {
+                self.map.update(&["base", "floor", "props"], Rect::new(
                     player.pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
                     player.pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
                     screen_width() + TILE_SIZE.x * 2.0,
@@ -173,12 +184,28 @@ impl Game {
                 &self.player_res.tex,
                 enemy.pos.x, enemy.pos.y,
                 WHITE, DrawTextureParams {
-                    source: Some(Rect::new(64.0, 128.0, TILE_SIZE.x, TILE_SIZE.y)),
+                    source: Some(Rect::new(96.0, 128.0, TILE_SIZE.x, TILE_SIZE.y)),
                     ..Default::default()
                 }
             );
 
             enemy.pos.draw_rect(TILE_SIZE, RED);
+
+            draw_rectangle(
+                enemy.pos.x,
+                enemy.pos.y - 10.0,
+                TILE_SIZE.x,
+                4.0,
+                DARKGRAY,
+            );
+
+            draw_rectangle(
+                enemy.pos.x,
+                enemy.pos.y - 10.0,
+                (TILE_SIZE.x * enemy.health / 100.0).clamp(0.0, TILE_SIZE.x),
+                4.0,
+                RED,
+            );
         }
 
         for (player_id, player) in self.world.players.iter() {
@@ -195,8 +222,10 @@ impl Game {
                 player.target_pos.draw_rect(TILE_SIZE, BLUE);
                 player.pos.draw_rect(TILE_SIZE, GREEN);
 
-                if let Some(player_target) = self.world.enemies.get(&player.target) {
-                    player_target.pos.draw_rect(TILE_SIZE, ORANGE);
+                if let Some(player_target) = player.target {
+                    if let Some(target) = self.world.enemies.get(&player_target) {
+                        target.pos.draw_rect(TILE_SIZE, ORANGE);
+                    }
                 }
             }
         }

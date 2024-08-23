@@ -15,8 +15,9 @@ impl Game {
         let mut world = World::default();
 
         for i in 1..4 {
-            let mut enemy = world.spawn_enemy();
+            let enemy = world.spawn_enemy();
             enemy.pos = Vec2D { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y };
+            enemy.health = 100.0;
         }
 
         Self {
@@ -34,6 +35,7 @@ impl Game {
                 let msg = ServerMessages::EnemyCreate {
                     id: *id,
                     pos: enemy.pos,
+                    health: enemy.health
                 };
                 self.server.send(client_id, msg);
             }
@@ -60,10 +62,23 @@ impl Game {
 
         self.handle_player_input();
 
-        while let Some((client_id, client_msg)) = self.server.get_client_msg() {
+        while let Some((_client_id, client_msg)) = self.server.get_client_msg() {
             match client_msg {
-                ClientMessages::PlayerCommand { id } => {
-                    todo!()
+                ClientMessages::PlayerAttack { target } => {
+                    if let Some(enemy) = self.world.enemies.get_mut(&target) {
+                        enemy.health -= 10.0;
+                        println!("Enemy health: {}", enemy.health);
+
+                        let msg = ServerMessages::EnemyUpdate { id: target, health: enemy.health };
+                        self.msg_queue.push_back(msg);
+    
+                        if enemy.health <= 0.0 {
+                            self.world.despawn_entity(target);
+    
+                            let msg = ServerMessages::EnemyDelete { id: target };
+                            self.msg_queue.push_back(msg);
+                        }
+                    }
                 }
             }
         }
@@ -87,15 +102,15 @@ impl Game {
             } else {
                 player.pos += player.vel * TILE_SIZE.into();
             }
-    
+
             if let Some(mouse_target) = input.mouse_target {
-                player.target = mouse_target;
+                player.target = Some(mouse_target);
             }
     
             let msg = ServerMessages::PlayerUpdate {
                 id: client_id.into(),
                 pos: player.pos,
-                target: player.target,
+                target: player.target
             };
             self.server.broadcast(msg);
         }
