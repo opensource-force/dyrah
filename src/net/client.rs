@@ -6,6 +6,7 @@ use std::{
 use renet::{
     transport::{ClientAuthentication, NetcodeClientTransport}, ClientId, ConnectionConfig, RenetClient
 };
+use serde::Serialize;
 
 use crate::{ClientChannel, ServerChannel, ServerMessages};
 
@@ -54,7 +55,9 @@ impl Client {
         None
     }
 
-    pub fn send(&mut self, channel_id: ClientChannel,  msg: Vec<u8>) {
-        self.renet.send_message(channel_id, msg);
+    pub fn send<T: Serialize>(&mut self, channel_id: ClientChannel, msg: T) {
+        if let Ok(client_msg) = bincode::serialize(&msg) {
+            self.renet.send_message(channel_id, client_msg);
+        }
     }
 }
