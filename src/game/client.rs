@@ -4,9 +4,10 @@ use crate::{net::client::Client, ClientChannel, ClientInput, ClientMessages, Ent
 
 use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
 
-struct PlayerResources {
-    id: EntityId,
-    tex: Texture2D
+struct Resources {
+    player_id: EntityId,
+    player_tex: Texture2D,
+    enemy_tex: Texture2D
 }
 
 pub struct Game {
@@ -14,7 +15,7 @@ pub struct Game {
     world: World,
     viewport: Viewport,
     map: Map,
-    player_res: PlayerResources
+    res: Resources
 }
 
 impl Game {
@@ -26,9 +27,10 @@ impl Game {
             world: World::default(),
             viewport: Viewport::new(screen_width(), screen_height()),
             map: Map::new("assets/map.json", "assets/tiles.png").await,
-            player_res: PlayerResources {
-                id: client_id.into(),
-                tex: load_texture("assets/32rogues/rogues.png").await.unwrap()
+            res: Resources {
+                player_id: client_id.into(),
+                player_tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
+                enemy_tex: load_texture("assets/32rogues/monsters.png").await.unwrap()
             }
         }
     }
@@ -36,11 +38,14 @@ impl Game {
     pub fn update(&mut self) {
         while let Some(server_msg) = self.client.get_server_msg() {
             match server_msg {
-                ServerMessages::PlayerCreate { id, pos } => {
+                ServerMessages::PlayerCreate { id, sprite, pos, health } => {
                     println!("Player {} spawned", id.raw());
 
                     let player = self.world.spawn_player(id);
+                    player.sprite = sprite;
                     player.pos = pos;
+                    player.health = health;
+                    player.sprite.frame = (1.0, 4.0);
                 }
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} despawned", id.raw());
@@ -58,10 +63,11 @@ impl Game {
                         player.target = target;
                     }
                 }
-                ServerMessages::EnemyCreate { id, pos, health } => {
+                ServerMessages::EnemyCreate { id, sprite, pos, health } => {
                     println!("Enemy {} spawned", id.raw());
 
                     let enemy = self.world.spawn_enemy();
+                    enemy.sprite = sprite;
                     enemy.pos = pos;
                     enemy.health = health;
                 },
@@ -98,7 +104,7 @@ impl Game {
         root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
         root_ui().label(None, &format!("Mouse pos: ({:.2}, {:.2})", mouse_pos.x, mouse_pos.y));
 
-        if let Some(player) = self.world.players.get(&self.player_res.id) {
+        if let Some(player) = self.world.players.get(&self.res.player_id) {
             let tile_pos = player.pos / TILE_SIZE.into();
             
             root_ui().label(None, &format!("Map position: ({:.2}, {:.2})", player.pos.x, player.pos.y));
@@ -158,7 +164,7 @@ impl Game {
                 self.client.send(ClientChannel::ClientMessages, msg);
             }
 
-            if self.player_res.id == *player_id {
+            if self.res.player_id == *player_id {
                 self.map.update(&["base", "floor", "props"], Rect::new(
                     player.pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
                     player.pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
@@ -179,46 +185,56 @@ impl Game {
     }
 
     fn draw_entities(&mut self) {
-        for (_, enemy) in self.world.enemies.iter() {
-            draw_texture_ex(
-                &self.player_res.tex,
-                enemy.pos.x, enemy.pos.y,
-                WHITE, DrawTextureParams {
-                    source: Some(Rect::new(96.0, 128.0, TILE_SIZE.x, TILE_SIZE.y)),
-                    ..Default::default()
-                }
-            );
-
-            enemy.pos.draw_rect(TILE_SIZE, RED);
-
+        for (_, entity) in self.world.players.iter().chain(self.world.enemies.iter()) {
             draw_rectangle(
-                enemy.pos.x,
-                enemy.pos.y - 10.0,
+                entity.pos.x,
+                entity.pos.y - 4.0,
                 TILE_SIZE.x,
                 4.0,
                 DARKGRAY,
             );
 
             draw_rectangle(
-                enemy.pos.x,
-                enemy.pos.y - 10.0,
-                (TILE_SIZE.x * enemy.health / 100.0).clamp(0.0, TILE_SIZE.x),
+                entity.pos.x,
+                entity.pos.y - 4.0,
+                (TILE_SIZE.x * entity.health / 100.0).clamp(0.0, TILE_SIZE.x),
                 4.0,
                 RED,
             );
         }
 
-        for (player_id, player) in self.world.players.iter() {
+        for (_, enemy) in self.world.enemies.iter() {
             draw_texture_ex(
-                &self.player_res.tex,
-                player.pos.x, player.pos.y,
+                &self.res.enemy_tex,
+                enemy.pos.x, enemy.pos.y,
                 WHITE, DrawTextureParams {
-                    source: Some(Rect::new(32.0, 128.0, TILE_SIZE.x, TILE_SIZE.y)),
+                    source: Some(Rect::new(
+                        enemy.sprite.frame.0 as f32 * TILE_SIZE.x,
+                        enemy.sprite.frame.1 as f32 * TILE_SIZE.y,
+                        TILE_SIZE.x, TILE_SIZE.y
+                    )),
                     ..Default::default()
                 }
             );
 
-            if *player_id == self.player_res.id {
+            enemy.pos.draw_rect(TILE_SIZE, RED);
+        }
+
+        for (player_id, player) in self.world.players.iter() {
+            draw_texture_ex(
+                &self.res.player_tex,
+                player.pos.x, player.pos.y,
+                WHITE, DrawTextureParams {
+                    source: Some(Rect::new(
+                        player.sprite.frame.0 as f32 * TILE_SIZE.x,
+                        player.sprite.frame.1 as f32 * TILE_SIZE.y,
+                        TILE_SIZE.x, TILE_SIZE.y
+                    )),
+                    ..Default::default()
+                }
+            );
+
+            if *player_id == self.res.player_id {
                 player.target_pos.draw_rect(TILE_SIZE, BLUE);
                 player.pos.draw_rect(TILE_SIZE, GREEN);
 

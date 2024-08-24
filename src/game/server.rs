@@ -16,8 +16,9 @@ impl Game {
 
         for i in 1..4 {
             let enemy = world.spawn_enemy();
+            enemy.sprite.frame = (3.0, 4.0);
             enemy.pos = Vec2D { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y };
-            enemy.health = 100.0;
+            enemy.health = 80.0;
         }
 
         Self {
@@ -34,6 +35,7 @@ impl Game {
             for (id, enemy) in &self.world.enemies {
                 let msg = ServerMessages::EnemyCreate {
                     id: *id,
+                    sprite: enemy.sprite,
                     pos: enemy.pos,
                     health: enemy.health
                 };
@@ -43,13 +45,20 @@ impl Game {
             for (id, other_player) in &self.world.players {
                 let msg = ServerMessages::PlayerCreate {
                     id: *id,
+                    sprite: other_player.sprite,
                     pos: other_player.pos,
+                    health: other_player.health
                 };
                 self.server.send(client_id, msg);
             }
 
             let player = self.world.spawn_player(client_id.into());
-            let msg = ServerMessages::PlayerCreate { id: client_id.into(), pos: player.pos };
+            let msg = ServerMessages::PlayerCreate {
+                id: client_id.into(),
+                sprite: player.sprite,
+                pos: player.pos,
+                health: 100.0
+            };
             self.msg_queue.push_back(msg);
         } else if let Some((client_id, reason)) = self.server.on_client_disconnect() {
             println!("Client {} disconnected: {}", client_id, reason);

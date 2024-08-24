@@ -80,6 +80,12 @@ impl Div<Vec2D> for Vec2D {
     }
 }
 
+#[derive(Default, Clone, Copy, Serialize, Deserialize, Debug)]
+
+pub struct Sprite {
+    pub frame: (f32, f32)
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct ClientInput {
     pub left: bool,
@@ -102,7 +108,9 @@ pub enum ClientMessages {
 pub enum ServerMessages {
     PlayerCreate {
         id: EntityId,
-        pos: Vec2D
+        sprite: Sprite,
+        pos: Vec2D,
+        health: f32
     },
     PlayerDelete {
         id: EntityId
@@ -114,6 +122,7 @@ pub enum ServerMessages {
     },
     EnemyCreate {
         id: EntityId,
+        sprite: Sprite,
         pos: Vec2D,
         health: f32
     },
