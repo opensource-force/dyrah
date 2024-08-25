@@ -1,6 +1,6 @@
 use macroquad::{prelude::*, ui::root_ui};
 
-use crate::{net::client::Client, ClientChannel, ClientInput, ClientMessages, EntityId, ServerMessages, Vec2D};
+use crate::{game::world::{Entity, EntityKind}, net::client::Client, ClientChannel, ClientInput, ClientMessages, EntityId, ServerMessages, Sprite, Vec2D};
 
 use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
 
@@ -38,14 +38,17 @@ impl Game {
     pub fn update(&mut self) {
         while let Some(server_msg) = self.client.get_server_msg() {
             match server_msg {
-                ServerMessages::PlayerCreate { id, sprite, pos, health } => {
+                ServerMessages::PlayerCreate { id, pos, health } => {
                     println!("Player {} spawned", id.raw());
 
-                    let player = self.world.spawn_player(id);
-                    player.sprite = sprite;
-                    player.pos = pos;
-                    player.health = health;
-                    player.sprite.frame = (1.0, 4.0);
+                    let player = Entity {
+                        kind: EntityKind::Player,
+                        sprite: Sprite { frame: (1.0, 4.0) },
+                        pos,
+                        health,
+                        ..Default::default()
+                    };
+                    self.world.spawn_entity_from_id(id, player);
                 }
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} despawned", id.raw());
@@ -53,23 +56,27 @@ impl Game {
                     self.world.despawn_entity(id);
                 }
                 ServerMessages::PlayerUpdate { id, pos, target } => {
-                    if let Some(player) = self.world.players.get_mut(&id) {
+                    if let Some(player) = self.world.entities.get_mut(&id) {
                         if let Some(tile) = self.map.get_tile(pos.into()) {
                             if tile.walkable {
-                                player.target_pos = tile.rect.center().into();
+                                player.target_pos = Some(tile.rect.center().into());
                             }
                         }
 
                         player.target = target;
                     }
                 }
-                ServerMessages::EnemyCreate { id, sprite, pos, health } => {
+                ServerMessages::EnemyCreate { id, pos, health } => {
                     println!("Enemy {} spawned", id.raw());
 
-                    let enemy = self.world.spawn_enemy();
-                    enemy.sprite = sprite;
-                    enemy.pos = pos;
-                    enemy.health = health;
+                    let enemy = Entity {
+                        kind: EntityKind::Enemy,
+                        sprite: Sprite { frame: (rand::gen_range(0, 1) as f32, rand::gen_range(0, 7) as f32) },
+                        pos,
+                        health,
+                        ..Default::default()
+                    };
+                    self.world.spawn_entity(enemy);
                 },
                 ServerMessages::EnemyDelete { id } => {
                     println!("Enemy {} passed away", id.raw());
@@ -77,7 +84,7 @@ impl Game {
                     self.world.despawn_entity(id);
                 },
                 ServerMessages::EnemyUpdate { id, health } => {
-                    let enemy = self.world.enemies.get_mut(&id).unwrap();
+                    let enemy = self.world.entities.get_mut(&id).unwrap();
                     enemy.health = health;
                 }
             }
@@ -104,12 +111,15 @@ impl Game {
         root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
         root_ui().label(None, &format!("Mouse pos: ({:.2}, {:.2})", mouse_pos.x, mouse_pos.y));
 
-        if let Some(player) = self.world.players.get(&self.res.player_id) {
+        if let Some(player) = self.world.entities.get(&self.res.player_id) {
             let tile_pos = player.pos / TILE_SIZE.into();
             
             root_ui().label(None, &format!("Map position: ({:.2}, {:.2})", player.pos.x, player.pos.y));
             root_ui().label(None, &format!("Tile pos: ({:.2}, {:.2})", tile_pos.x, tile_pos.y));
-            root_ui().label(None, &format!("Player target pos: ({:.2}, {:.2})", player.target_pos.x, player.target_pos.y));
+
+            if let Some(target_pos) = player.target_pos {
+                root_ui().label(None, &format!("Player target pos: ({:.2}, {:.2})", target_pos.x, target_pos.y));
+            }
         }
     }
 
@@ -123,7 +133,7 @@ impl Game {
         let mouse_target = if is_mouse_button_released(MouseButton::Right) {
             let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
         
-            self.world.enemies.iter()
+            self.world.enemies()
                 .find_map(|(enemy_id, enemy)| {
                     let enemy_rect = Rect::new(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y);
                     
@@ -152,12 +162,13 @@ impl Game {
     }
 
     fn update_entities(&mut self) {
-        for (player_id, player) in &mut self.world.players {
-            let start_pos = Vec2::from(player.pos);
-            let target_pos = Vec2::from(player.target_pos);
-            let speed = 2.5;
+        for (player_id, player) in &mut self.world.players_mut() {
+            if let Some(target_pos) = player.target_pos {
+                let start_pos = Vec2::from(player.pos);
+                let speed = 2.5;
 
-            player.pos = start_pos.lerp(target_pos, speed * get_frame_time()).into();
+                player.pos = start_pos.lerp(target_pos.into(), speed * get_frame_time()).into();
+            }
             
             if let Some(target) = player.target {
                 let msg = ClientMessages::PlayerAttack { target };
@@ -176,7 +187,7 @@ impl Game {
             }
         }
 
-        for (_, enemy) in self.world.enemies.iter_mut() {
+        for (_, enemy) in self.world.enemies_mut() {
             enemy.pos += Vec2D {
                 x: rand::gen_range(-1.0, 1.0),
                 y: rand::gen_range(-1.0, 1.0),
@@ -185,7 +196,7 @@ impl Game {
     }
 
     fn draw_entities(&mut self) {
-        for (_, entity) in self.world.players.iter().chain(self.world.enemies.iter()) {
+        for (_, entity) in &self.world.entities {
             draw_rectangle(
                 entity.pos.x,
                 entity.pos.y - 4.0,
@@ -203,7 +214,7 @@ impl Game {
             );
         }
 
-        for (_, enemy) in self.world.enemies.iter() {
+        for (_, enemy) in self.world.enemies() {
             draw_texture_ex(
                 &self.res.enemy_tex,
                 enemy.pos.x, enemy.pos.y,
@@ -220,7 +231,7 @@ impl Game {
             enemy.pos.draw_rect(TILE_SIZE, RED);
         }
 
-        for (player_id, player) in self.world.players.iter() {
+        for (player_id, player) in self.world.players() {
             draw_texture_ex(
                 &self.res.player_tex,
                 player.pos.x, player.pos.y,
@@ -235,11 +246,14 @@ impl Game {
             );
 
             if *player_id == self.res.player_id {
-                player.target_pos.draw_rect(TILE_SIZE, BLUE);
+                if let Some(target_pos) = player.target_pos {
+                    target_pos.draw_rect(TILE_SIZE, BLUE);
+                }
+                
                 player.pos.draw_rect(TILE_SIZE, GREEN);
 
                 if let Some(player_target) = player.target {
-                    if let Some(target) = self.world.enemies.get(&player_target) {
+                    if let Some(target) = self.world.entities.get(&player_target) {
                         target.pos.draw_rect(TILE_SIZE, ORANGE);
                     }
                 }

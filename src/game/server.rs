@@ -1,8 +1,10 @@
 use std::collections::VecDeque;
 
-use crate::{net::server::Server, ClientMessages, ServerMessages, Vec2D};
+use macroquad::rand::gen_range;
 
-use super::{map::TILE_SIZE, world::World};
+use crate::{game::world::{Entity, EntityKind}, net::server::Server, ClientMessages, ServerMessages, Vec2D};
+
+use super::{map::{TILE_OFFSET, TILE_SIZE}, world::World};
 
 pub struct Game {
     server: Server,
@@ -14,11 +16,17 @@ impl Game {
     pub fn new() -> Self {
         let mut world = World::default();
 
-        for i in 1..4 {
-            let enemy = world.spawn_enemy();
-            enemy.sprite.frame = (3.0, 4.0);
-            enemy.pos = Vec2D { x: i as f32 * TILE_SIZE.x, y: i as f32 * TILE_SIZE.y };
-            enemy.health = 80.0;
+        for _ in 1..99 {
+            let enemy = Entity {
+                kind: EntityKind::Enemy,
+                pos: Vec2D {
+                    x: gen_range(TILE_OFFSET.x, 64.0 * TILE_SIZE.x),
+                    y: gen_range(TILE_OFFSET.y, 64.0 * TILE_SIZE.y)
+                },
+                health: gen_range(50, 80) as f32,
+                ..Default::default()
+            };
+            world.spawn_entity(enemy);
         }
 
         Self {
@@ -32,32 +40,36 @@ impl Game {
         if let Some(client_id) = self.server.on_client_connect() {
             println!("Client {} connected.", client_id);
 
-            for (id, enemy) in &self.world.enemies {
+            for (id, enemy) in self.world.enemies() {
                 let msg = ServerMessages::EnemyCreate {
                     id: *id,
-                    sprite: enemy.sprite,
                     pos: enemy.pos,
                     health: enemy.health
                 };
                 self.server.send(client_id, msg);
             }
 
-            for (id, other_player) in &self.world.players {
+            for (id, other_player) in self.world.players() {
                 let msg = ServerMessages::PlayerCreate {
                     id: *id,
-                    sprite: other_player.sprite,
                     pos: other_player.pos,
                     health: other_player.health
                 };
                 self.server.send(client_id, msg);
             }
 
-            let player = self.world.spawn_player(client_id.into());
+            let player = Entity {
+                kind: EntityKind::Player,
+                pos: TILE_OFFSET.into(),
+                health: 100.0,
+                ..Default::default()
+            };
+            self.world.spawn_entity_from_id(client_id.into(), player);
+
             let msg = ServerMessages::PlayerCreate {
                 id: client_id.into(),
-                sprite: player.sprite,
                 pos: player.pos,
-                health: 100.0
+                health: player.health
             };
             self.msg_queue.push_back(msg);
         } else if let Some((client_id, reason)) = self.server.on_client_disconnect() {
@@ -74,9 +86,8 @@ impl Game {
         while let Some((_client_id, client_msg)) = self.server.get_client_msg() {
             match client_msg {
                 ClientMessages::PlayerAttack { target } => {
-                    if let Some(enemy) = self.world.enemies.get_mut(&target) {
+                    if let Some(enemy) = self.world.entities.get_mut(&target) {
                         enemy.health -= 10.0;
-                        println!("Enemy health: {}", enemy.health);
 
                         let msg = ServerMessages::EnemyUpdate { id: target, health: enemy.health };
                         self.msg_queue.push_back(msg);
@@ -101,7 +112,7 @@ impl Game {
 
     fn handle_player_input(&mut self) {
         while let Some((client_id, input)) = self.server.get_client_input() {
-            let player = self.world.players.get_mut(&client_id.into()).unwrap();
+            let player = self.world.entities.get_mut(&client_id.into()).unwrap();
     
             player.vel.x = (input.right as i8 - input.left as i8) as f32;
             player.vel.y = (input.down as i8 - input.up as i8) as f32;

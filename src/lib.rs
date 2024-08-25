@@ -108,7 +108,6 @@ pub enum ClientMessages {
 pub enum ServerMessages {
     PlayerCreate {
         id: EntityId,
-        sprite: Sprite,
         pos: Vec2D,
         health: f32
     },
@@ -122,7 +121,6 @@ pub enum ServerMessages {
     },
     EnemyCreate {
         id: EntityId,
-        sprite: Sprite,
         pos: Vec2D,
         health: f32
     },
