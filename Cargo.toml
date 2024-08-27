@@ -20,6 +20,7 @@ macroquad = "0.4.11"
 macroquad-tiled = "0.2.1"
 renet = "0.0.16"
 serde = { version = "1.0.204", features = ["derive"] }
+thunderdome = "0.6.1"
 #egui = "0.27.2"
 #egui-wgpu = { version = "0.27.2", features = ["winit"] }
 #egui-winit = "0.27.2"

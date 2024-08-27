@@ -56,7 +56,7 @@ impl Game {
                     self.world.despawn_entity(id);
                 }
                 ServerMessages::PlayerUpdate { id, pos, target } => {
-                    if let Some(player) = self.world.entities.get_mut(&id) {
+                    if let Some(player) = self.world.get_entity_mut(id) {
                         if let Some(tile) = self.map.get_tile(pos.into()) {
                             if tile.walkable {
                                 player.target_pos = Some(tile.rect.center().into());
@@ -84,8 +84,9 @@ impl Game {
                     self.world.despawn_entity(id);
                 },
                 ServerMessages::EnemyUpdate { id, health } => {
-                    let enemy = self.world.entities.get_mut(&id).unwrap();
-                    enemy.health = health;
+                    if let Some(enemy) = self.world.get_entity_mut(id) {
+                        enemy.health = health;
+                    }
                 }
             }
         }
@@ -111,7 +112,7 @@ impl Game {
         root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
         root_ui().label(None, &format!("Mouse pos: ({:.2}, {:.2})", mouse_pos.x, mouse_pos.y));
 
-        if let Some(player) = self.world.entities.get(&self.res.player_id) {
+        if let Some(player) = self.world.get_entity(self.res.player_id) {
             let tile_pos = player.pos / TILE_SIZE.into();
             
             root_ui().label(None, &format!("Map position: ({:.2}, {:.2})", player.pos.x, player.pos.y));
@@ -124,20 +125,25 @@ impl Game {
     }
 
     fn handle_player_input(&mut self) {
+        let mouse_world_pos = self.viewport.camera.screen_to_world(mouse_position().into());
+
         let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
-            Some(self.viewport.camera.screen_to_world(mouse_position().into()).into())
+            Some(mouse_world_pos.into())
         } else {
             None
         };
-
+    
         let mouse_target = if is_mouse_button_released(MouseButton::Right) {
-            let mouse_pos = self.viewport.camera.screen_to_world(mouse_position().into());
-        
             self.world.enemies()
                 .find_map(|(enemy_id, enemy)| {
-                    let enemy_rect = Rect::new(enemy.pos.x, enemy.pos.y, TILE_SIZE.x, TILE_SIZE.y);
-                    
-                    if enemy_rect.contains(mouse_pos) {
+                    let enemy_rect = Rect::new(
+                        enemy.pos.x,
+                        enemy.pos.y,
+                        TILE_SIZE.x,
+                        TILE_SIZE.y,
+                    );
+
+                    if enemy_rect.contains(mouse_world_pos) {
                         Some(*enemy_id)
                     } else {
                         None
@@ -162,7 +168,8 @@ impl Game {
     }
 
     fn update_entities(&mut self) {
-        for (player_id, player) in &mut self.world.players_mut() {
+        // we need a mutable reference to player entities here
+        for (player_id, player) in self.world.players() {
             if let Some(target_pos) = player.target_pos {
                 let start_pos = Vec2::from(player.pos);
                 let speed = 2.5;
@@ -185,9 +192,11 @@ impl Game {
     
                 self.viewport.update(player.pos.into(), screen_width(), screen_height());
             }
+
         }
 
-        for (_, enemy) in self.world.enemies_mut() {
+        // and a mutable reference to enemy entities here
+        for (_, enemy) in self.world.enemies() {
             enemy.pos += Vec2D {
                 x: rand::gen_range(-1.0, 1.0),
                 y: rand::gen_range(-1.0, 1.0),
@@ -253,7 +262,9 @@ impl Game {
                 player.pos.draw_rect(TILE_SIZE, GREEN);
 
                 if let Some(player_target) = player.target {
-                    if let Some(target) = self.world.entities.get(&player_target) {
+
+
+                    if let Some(target) = self.world.get_entity(player_target) {
                         target.pos.draw_rect(TILE_SIZE, ORANGE);
                     }
                 }
