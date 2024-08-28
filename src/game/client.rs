@@ -1,8 +1,8 @@
 use macroquad::{prelude::*, ui::root_ui};
 
-use crate::{game::world::{Entity, EntityKind}, net::client::Client, ClientChannel, ClientInput, ClientMessages, EntityId, ServerMessages, Sprite, Vec2D};
+use crate::{game::{world::Entity, Sprite}, net::client::Client, ClientChannel, ClientInput, ClientMessages, EntityId, ServerMessages, Vec2D};
 
-use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World};
+use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World, Lobby};
 
 struct Resources {
     player_id: EntityId,
@@ -13,6 +13,7 @@ struct Resources {
 pub struct Game {
     client: Client,
     world: World,
+    lobby: Lobby,
     viewport: Viewport,
     map: Map,
     res: Resources
@@ -25,6 +26,7 @@ impl Game {
         Self {
             client,
             world: World::default(),
+            lobby: Lobby::default(),
             viewport: Viewport::new(screen_width(), screen_height()),
             map: Map::new("assets/map.json", "assets/tiles.png").await,
             res: Resources {
@@ -42,21 +44,25 @@ impl Game {
                     println!("Player {} spawned", id.raw());
 
                     let player = Entity {
-                        kind: EntityKind::Player,
                         sprite: Sprite { frame: (1.0, 4.0) },
                         pos,
                         health,
                         ..Default::default()
                     };
-                    self.world.spawn_entity_from_id(id, player);
+                    let player_idx = self.world.spawn_entity(player);
+                    self.lobby.players.insert(id, player_idx);
                 }
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} despawned", id.raw());
                     
-                    self.world.despawn_entity(id);
+                    if let Some(player_idx) = self.lobby.players.remove(&id) {
+                        self.world.despawn_entity(player_idx);
+                    }
                 }
                 ServerMessages::PlayerUpdate { id, pos, target } => {
-                    if let Some(player) = self.world.get_entity_mut(id) {
+                    if let Some(player_idx) = self.lobby.players.get(&id) {
+                        let player = &mut self.world.entities[*player_idx];
+
                         if let Some(tile) = self.map.get_tile(pos.into()) {
                             if tile.walkable {
                                 player.target_pos = Some(tile.rect.center().into());
@@ -70,21 +76,25 @@ impl Game {
                     println!("Enemy {} spawned", id.raw());
 
                     let enemy = Entity {
-                        kind: EntityKind::Enemy,
                         sprite: Sprite { frame: (rand::gen_range(0, 1) as f32, rand::gen_range(0, 7) as f32) },
                         pos,
                         health,
                         ..Default::default()
                     };
-                    self.world.spawn_entity(enemy);
+                    let enemy_idx = self.world.spawn_entity(enemy);
+                    self.lobby.enemies.insert(id, enemy_idx);
                 },
                 ServerMessages::EnemyDelete { id } => {
                     println!("Enemy {} passed away", id.raw());
 
-                    self.world.despawn_entity(id);
+                    if let Some(idx) = self.lobby.enemies.remove(&id) {
+                        self.world.despawn_entity(idx);
+                    }
                 },
                 ServerMessages::EnemyUpdate { id, health } => {
-                    if let Some(enemy) = self.world.get_entity_mut(id) {
+                    if let Some(enemy_idx) = self.lobby.enemies.get(&id) {
+                        let enemy = &mut self.world.entities[*enemy_idx];
+
                         enemy.health = health;
                     }
                 }
@@ -112,7 +122,9 @@ impl Game {
         root_ui().label(None, &format!("FPS: {:.1}", get_fps()));
         root_ui().label(None, &format!("Mouse pos: ({:.2}, {:.2})", mouse_pos.x, mouse_pos.y));
 
-        if let Some(player) = self.world.get_entity(self.res.player_id) {
+        if let Some(player_idx) = self.lobby.players.get(&self.res.player_id) {
+            let player = self.world.entities[*player_idx];
+
             let tile_pos = player.pos / TILE_SIZE.into();
             
             root_ui().label(None, &format!("Map position: ({:.2}, {:.2})", player.pos.x, player.pos.y));
@@ -134,20 +146,22 @@ impl Game {
         };
     
         let mouse_target = if is_mouse_button_released(MouseButton::Right) {
-            self.world.enemies()
-                .find_map(|(enemy_id, enemy)| {
-                    let enemy_rect = Rect::new(
-                        enemy.pos.x,
-                        enemy.pos.y,
-                        TILE_SIZE.x,
-                        TILE_SIZE.y,
-                    );
-
-                    if enemy_rect.contains(mouse_world_pos) {
-                        Some(*enemy_id)
-                    } else {
-                        None
+            self.lobby.enemies
+                .iter()
+                .find_map(|(enemy_id, &enemy_idx)| {
+                    if let Some(enemy) = self.world.entities.get(enemy_idx) {
+                        let enemy_rect = Rect::new(
+                            enemy.pos.x,
+                            enemy.pos.y,
+                            TILE_SIZE.x,
+                            TILE_SIZE.y,
+                        );
+        
+                        if enemy_rect.contains(mouse_world_pos) {
+                            return Some(*enemy_id);
+                        }
                     }
+                    None
                 })
         } else {
             None
@@ -168,8 +182,9 @@ impl Game {
     }
 
     fn update_entities(&mut self) {
-        // we need a mutable reference to player entities here
-        for (player_id, player) in self.world.players() {
+        for (player_id, player_idx) in &self.lobby.players {
+            let player = &mut self.world.entities[*player_idx];
+
             if let Some(target_pos) = player.target_pos {
                 let start_pos = Vec2::from(player.pos);
                 let speed = 2.5;
@@ -178,7 +193,7 @@ impl Game {
             }
             
             if let Some(target) = player.target {
-                let msg = ClientMessages::PlayerAttack { target };
+                let msg = ClientMessages::PlayerAttack { id: *player_id, enemy_id: target };
                 self.client.send(ClientChannel::ClientMessages, msg);
             }
 
@@ -195,8 +210,9 @@ impl Game {
 
         }
 
-        // and a mutable reference to enemy entities here
-        for (_, enemy) in self.world.enemies() {
+        for (_, enemy_idx) in &self.lobby.enemies {
+            let enemy = &mut self.world.entities[*enemy_idx];
+
             enemy.pos += Vec2D {
                 x: rand::gen_range(-1.0, 1.0),
                 y: rand::gen_range(-1.0, 1.0),
@@ -223,7 +239,9 @@ impl Game {
             );
         }
 
-        for (_, enemy) in self.world.enemies() {
+        for (_, enemy_idx) in &self.lobby.enemies {
+            let enemy = self.world.entities[*enemy_idx];
+
             draw_texture_ex(
                 &self.res.enemy_tex,
                 enemy.pos.x, enemy.pos.y,
@@ -240,7 +258,9 @@ impl Game {
             enemy.pos.draw_rect(TILE_SIZE, RED);
         }
 
-        for (player_id, player) in self.world.players() {
+        for (player_id, player_idx) in &self.lobby.players {
+            let player = self.world.entities[*player_idx];
+
             draw_texture_ex(
                 &self.res.player_tex,
                 player.pos.x, player.pos.y,
@@ -262,9 +282,9 @@ impl Game {
                 player.pos.draw_rect(TILE_SIZE, GREEN);
 
                 if let Some(player_target) = player.target {
-
-
-                    if let Some(target) = self.world.get_entity(player_target) {
+                    if let Some(target_idx) = self.lobby.enemies.get(&player_target) {
+                        let target = self.world.entities[*target_idx];
+                        
                         target.pos.draw_rect(TILE_SIZE, ORANGE);
                     }
                 }
