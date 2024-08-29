@@ -1,7 +1,22 @@
 use dyhra::game::client::Game;
-use macroquad::{color::SKYBLUE, window::{clear_background, next_frame}};
+use macroquad::{
+    color::SKYBLUE,
+    miniquad::conf::Platform,
+    window::{clear_background, next_frame, Conf},
+};
 
-#[macroquad::main("Dyhra")]
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Dyhra".to_owned(),
+        platform: Platform {
+            swap_interval: Some(0),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
 async fn main() {
     let mut game = Game::new().await;
 
