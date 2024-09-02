@@ -1,6 +1,7 @@
 use std::{collections::HashMap, ops::{AddAssign, Div, Mul}};
 
-use macroquad::{color::Color, math::Vec2, shapes::draw_rectangle_lines};
+use macroquad::{color::Color, math::{Rect, Vec2}, shapes::draw_rectangle_lines, window::{screen_height, screen_width}};
+use map::TILE_SIZE;
 use renet::ClientId;
 use serde::{Deserialize, Serialize};
 use thunderdome::Index;
@@ -19,7 +20,7 @@ pub struct Lobby {
 
 #[derive(Default, Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct Sprite {
-    pub frame: (f32, f32)
+    pub frame: Vec2D
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -49,8 +50,20 @@ pub struct Vec2D {
 }
 
 impl Vec2D {
+    pub fn new_rect(&self, size: Vec2) -> Rect {
+        Rect::new(self.x, self.y, size.x, size.y)
+    }
+
     pub fn draw_rect(&self, size: Vec2, color: Color) {
         draw_rectangle_lines(self.x, self.y, size.x, size.y, 2.0, color);
+    }
+
+    pub fn screen_rect(&self) -> Rect {
+        Rect::new(
+            self.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
+            self.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
+            screen_width() + TILE_SIZE.x * 2.0, screen_height() + TILE_SIZE.y * 2.0,
+        )
     }
 }
 

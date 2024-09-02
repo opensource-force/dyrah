@@ -6,6 +6,7 @@ use super::{camera::Viewport, map::{Map, TILE_OFFSET, TILE_SIZE}, world::World, 
 
 struct Resources {
     player_id: EntityId,
+    player_view: Rect,
     player_tex: Texture2D,
     enemy_tex: Texture2D
 }
@@ -31,6 +32,7 @@ impl Game {
             map: Map::new("assets/map.json", "assets/tiles.png").await,
             res: Resources {
                 player_id: client_id.into(),
+                player_view: Rect::default(),
                 player_tex: load_texture("assets/32rogues/rogues.png").await.unwrap(),
                 enemy_tex: load_texture("assets/32rogues/monsters.png").await.unwrap()
             }
@@ -44,13 +46,17 @@ impl Game {
                     println!("Player {} spawned", id.raw());
 
                     let player = Entity {
-                        sprite: Sprite { frame: (1.0, 4.0) },
+                        sprite: Sprite { frame: Vec2D { x: 1.0, y: 4.0 } },
                         pos,
                         health,
                         ..Default::default()
                     };
                     let player_idx = self.world.spawn_entity(player);
                     self.lobby.players.insert(id, player_idx);
+
+                    self.res.player_view = player.pos.screen_rect();
+                    self.map.update(&["base", "floor", "props"], self.res.player_view);
+                    self.viewport.update(player.pos.into(), screen_width(), screen_height());
                 }
                 ServerMessages::PlayerDelete { id } => {
                     println!("Player {} despawned", id.raw());
@@ -76,7 +82,10 @@ impl Game {
                     println!("Enemy {} spawned", id.raw());
 
                     let enemy = Entity {
-                        sprite: Sprite { frame: (rand::gen_range(0, 1) as f32, rand::gen_range(0, 7) as f32) },
+                        sprite: Sprite { frame: Vec2D {
+                            x: rand::gen_range(0, 1) as f32,
+                            y: rand::gen_range(0, 7) as f32
+                        }},
                         pos,
                         health,
                         ..Default::default()
@@ -137,41 +146,32 @@ impl Game {
     }
 
     fn handle_player_input(&mut self) {
+        let mut mouse_target = None;
+        let mut mouse_target_pos = None;
         let mouse_world_pos = self.viewport.camera.screen_to_world(mouse_position().into());
 
-        let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
-            Some(mouse_world_pos.into())
-        } else {
-            None
-        };
+        if is_mouse_button_released(MouseButton::Left) {
+            mouse_target_pos = Some(mouse_world_pos.into());
+        }
     
-        let mouse_target = if is_mouse_button_released(MouseButton::Right) {
-            self.lobby.enemies
-                .iter()
-                .find_map(|(enemy_id, &enemy_idx)| {
-                    if let Some(enemy) = self.world.entities.get(enemy_idx) {
-                        let enemy_rect = Rect::new(
-                            enemy.pos.x,
-                            enemy.pos.y,
-                            TILE_SIZE.x,
-                            TILE_SIZE.y,
-                        );
-        
-                        if enemy_rect.contains(mouse_world_pos) {
-                            return Some(*enemy_id);
-                        }
+        if is_mouse_button_released(MouseButton::Right) {
+            for (enemy_id, enemy_idx) in &self.lobby.enemies {
+                if let Some(enemy) = self.world.entities.get(*enemy_idx) {
+                    let enemy_rect = enemy.pos.new_rect(TILE_SIZE);
+                    
+                    if enemy_rect.contains(mouse_world_pos) {
+                        mouse_target = Some(*enemy_id);
+                        break;
                     }
-                    None
-                })
-        } else {
-            None
-        };
+                }
+            }
+        }
 
         let input = &ClientInput {
-            left: is_key_down(KeyCode::A) || is_key_down(KeyCode::Left),
-            up: is_key_down(KeyCode::W) || is_key_down(KeyCode::Up),
-            down: is_key_down(KeyCode::S) || is_key_down(KeyCode::Down),
-            right: is_key_down(KeyCode::D) || is_key_down(KeyCode::Right),
+            left: is_key_released(KeyCode::A) || is_key_released(KeyCode::Left),
+            up: is_key_released(KeyCode::W) || is_key_released(KeyCode::Up),
+            down: is_key_released(KeyCode::S) || is_key_released(KeyCode::Down),
+            right: is_key_released(KeyCode::D) || is_key_released(KeyCode::Right),
             mouse_target_pos,
             mouse_target
         };
@@ -190,24 +190,18 @@ impl Game {
                 let speed = 2.5;
 
                 player.pos = start_pos.lerp(target_pos.into(), speed * get_frame_time()).into();
+
+                if self.res.player_id == *player_id {
+                    self.res.player_view = player.pos.screen_rect();
+                    self.map.update(&["base", "floor", "props"], self.res.player_view);
+                    self.viewport.update(player.pos.into(), screen_width(), screen_height());
+                }
             }
             
             if let Some(target) = player.target {
                 let msg = ClientMessages::PlayerAttack { id: *player_id, enemy_id: target };
                 self.client.send(ClientChannel::ClientMessages, msg);
             }
-
-            if self.res.player_id == *player_id {
-                self.map.update(&["base", "floor", "props"], Rect::new(
-                    player.pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
-                    player.pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
-                    screen_width() + TILE_SIZE.x * 2.0,
-                    screen_height() + TILE_SIZE.y * 2.0
-                ));
-    
-                self.viewport.update(player.pos.into(), screen_width(), screen_height());
-            }
-
         }
 
         for (_, enemy_idx) in &self.lobby.enemies {
@@ -222,57 +216,55 @@ impl Game {
 
     fn draw_entities(&mut self) {
         for (_, entity) in &self.world.entities {
-            draw_rectangle(
-                entity.pos.x,
-                entity.pos.y - 4.0,
-                TILE_SIZE.x,
-                4.0,
-                DARKGRAY,
-            );
+            if self.res.player_view.contains(entity.pos.into()) {
+                draw_rectangle(
+                    entity.pos.x,
+                    entity.pos.y - 4.0,
+                    TILE_SIZE.x,
+                    4.0,
+                    DARKGRAY,
+                );
 
-            draw_rectangle(
-                entity.pos.x,
-                entity.pos.y - 4.0,
-                (TILE_SIZE.x * entity.health / 100.0).clamp(0.0, TILE_SIZE.x),
-                4.0,
-                RED,
-            );
+                draw_rectangle(
+                    entity.pos.x,
+                    entity.pos.y - 4.0,
+                    (TILE_SIZE.x * entity.health / 100.0).clamp(0.0, TILE_SIZE.x),
+                    4.0,
+                    RED,
+                );
+            }
         }
 
         for (_, enemy_idx) in &self.lobby.enemies {
             let enemy = self.world.entities[*enemy_idx];
 
-            draw_texture_ex(
-                &self.res.enemy_tex,
-                enemy.pos.x, enemy.pos.y,
-                WHITE, DrawTextureParams {
-                    source: Some(Rect::new(
-                        enemy.sprite.frame.0 as f32 * TILE_SIZE.x,
-                        enemy.sprite.frame.1 as f32 * TILE_SIZE.y,
-                        TILE_SIZE.x, TILE_SIZE.y
-                    )),
-                    ..Default::default()
-                }
-            );
-
-            enemy.pos.draw_rect(TILE_SIZE, RED);
+            if self.res.player_view.contains(enemy.pos.into()) {
+                draw_texture_ex(
+                    &self.res.enemy_tex,
+                    enemy.pos.x, enemy.pos.y,
+                    WHITE, DrawTextureParams {
+                        source: Some((enemy.sprite.frame * TILE_SIZE.into()).new_rect(TILE_SIZE)),
+                        ..Default::default()
+                    }
+                );
+    
+                enemy.pos.draw_rect(TILE_SIZE, RED);
+            }
         }
 
         for (player_id, player_idx) in &self.lobby.players {
             let player = self.world.entities[*player_idx];
 
-            draw_texture_ex(
-                &self.res.player_tex,
-                player.pos.x, player.pos.y,
-                WHITE, DrawTextureParams {
-                    source: Some(Rect::new(
-                        player.sprite.frame.0 as f32 * TILE_SIZE.x,
-                        player.sprite.frame.1 as f32 * TILE_SIZE.y,
-                        TILE_SIZE.x, TILE_SIZE.y
-                    )),
-                    ..Default::default()
-                }
-            );
+            if self.res.player_view.contains(player.pos.into()) {
+                draw_texture_ex(
+                    &self.res.player_tex,
+                    player.pos.x, player.pos.y,
+                    WHITE, DrawTextureParams {
+                        source: Some((player.sprite.frame * TILE_SIZE.into()).new_rect(TILE_SIZE)),
+                        ..Default::default()
+                    }
+                );
+            }
 
             if *player_id == self.res.player_id {
                 if let Some(target_pos) = player.target_pos {
