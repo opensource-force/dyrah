@@ -1,34 +1,20 @@
 [package]
-name = "dyhra"
-version = "0.0.1"
-edition = "2021"
-license = "GPL3"
-authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
-repository = "https://github.com/wick3dr0se/dyhra"
+name = "dyrah"
+version = "0.1.0"
+edition = "2024"
 
 [[bin]]
 name = "server"
-path = "src/bin/server.rs"
+path = "bin/server.rs"
 
 [[bin]]
 name = "client"
-path = "src/bin/client.rs"
+path = "bin/client.rs"
 
 [dependencies]
 bincode = "1.3.3"
-macroquad = "0.4.11"
+macroquad = "0.4.13"
 macroquad-tiled = "0.2.1"
-renet = "0.0.16"
-serde = { version = "1.0.204", features = ["derive"] }
-#egui = "0.27.2"
-#egui-wgpu = { version = "0.27.2", features = ["winit"] }
-#egui-winit = "0.27.2"
-#wgpu = "0.20.1"
-#winit = "0.30.2"
-
-[profile.release]
-strip = true
-codegen-units = 1
-opt-level = "z"
-lto = true
-panic = "abort"
+secs = { git = "https://github.com/wick3dr0se/secs", version = "0.1.0" }
+serde = { version = "1.0.218", features = ["derive"] }
+wrym = { git = "https://github.com/wick3dr0se/wrym", version = "0.1.0" }

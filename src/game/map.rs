@@ -1,14 +1,10 @@
 use std::{ffi::OsStr, path::Path};
 
-use macroquad::{
-    file::load_string,
-    math::{vec2, Rect, Vec2},
-    texture::{load_texture, FilterMode}
-};
+use macroquad::{file::load_string, math::{vec2, Rect, Vec2}, texture::{load_texture, FilterMode}, window::{screen_height, screen_width}};
 use macroquad_tiled as tiled;
 
-pub const TILE_SIZE: Vec2 = vec2(32.0, 32.0);
-pub const TILE_OFFSET: Vec2 = vec2(16.0, 16.0);
+pub const TILE_SIZE: Vec2 = vec2(32., 32.);
+pub const TILE_OFFSET: Vec2 = vec2(16., 16.);
 
 pub struct Tile {
     id: u32,
@@ -40,6 +36,15 @@ impl Map {
         }
     }
 
+    pub fn viewport_from(pos: Vec2) -> Rect {
+        Rect::new(
+            pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
+            pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
+            screen_width() + TILE_SIZE.x * 2.0,
+            screen_height() + TILE_SIZE.y * 2.0
+        )
+    }
+
     pub fn update(&mut self, layers: &[&str], bounds: Rect) {
         self.chunk.clear();
 
@@ -67,14 +72,14 @@ impl Map {
         }
     }
 
-    pub fn draw(&self) {
+    pub fn render(&self) {
         for tile in &self.chunk {
             self.tiled.spr(
                 "tiles",
                 tile.id,
                 Rect::new(
-                    tile.rect.x + tile.rect.w / 2.0,
-                    tile.rect.y + tile.rect.h / 2.0,
+                    tile.rect.x + tile.rect.w / 2.,
+                    tile.rect.y + tile.rect.h / 2.,
                     tile.rect.w, tile.rect.h
                 )
             );

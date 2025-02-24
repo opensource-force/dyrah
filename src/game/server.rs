@@ -1,139 +1,108 @@
-use std::collections::VecDeque;
+use std::{collections::HashMap, thread, time::{Duration, Instant}};
 
-use macroquad::rand::gen_range;
+use bincode::{deserialize, serialize};
+use secs::prelude::World;
+use wrym::{server::{Server, ServerConfig, ServerEvent}, transport::LaminarTransport};
 
-use crate::{game::world::{Entity, EntityKind}, net::server::Server, ClientMessages, ServerMessages, Vec2D};
-
-use super::{map::{TILE_OFFSET, TILE_SIZE}, world::World};
+use super::{ClientMessage, Position, ServerMessage};
 
 pub struct Game {
-    server: Server,
-    msg_queue: VecDeque<ServerMessages>,
+    server: Server<LaminarTransport>,
+    lobby: HashMap<String, u64>,
     world: World
 }
 
 impl Game {
     pub fn new() -> Self {
-        let mut world = World::default();
-
-        for _ in 1..99 {
-            let enemy = Entity {
-                kind: EntityKind::Enemy,
-                pos: Vec2D {
-                    x: gen_range(TILE_OFFSET.x, 64.0 * TILE_SIZE.x),
-                    y: gen_range(TILE_OFFSET.y, 64.0 * TILE_SIZE.y)
-                },
-                health: gen_range(50, 80) as f32,
-                ..Default::default()
-            };
-            world.spawn_entity(enemy);
-        }
+        let transport = LaminarTransport::new("127.0.0.1:8080");
 
         Self {
-            server: Server::new("127.0.0.1:6667".parse().unwrap()),
-            msg_queue: VecDeque::new(),
-            world
+            server: Server::new(transport, ServerConfig::default()),
+            lobby: HashMap::new(),
+            world: World::default()
         }
     }
 
-    pub fn update(&mut self) {
-        if let Some(client_id) = self.server.on_client_connect() {
-            println!("Client {} connected.", client_id);
+    fn handle_events(&mut self) {
+        while let Some(event) = self.server.recv_event() {
+            match event {
+                ServerEvent::ClientConnected(addr) => {
+                    let player = self.world.spawn((Position { x: 0., y: 0. },));
+                    let player_id = player.to_bits();
 
-            for (id, enemy) in self.world.enemies() {
-                let msg = ServerMessages::EnemyCreate {
-                    id: *id,
-                    pos: enemy.pos,
-                    health: enemy.health
-                };
-                self.server.send(client_id, msg);
-            }
+                    // sync existing players with new clients
+                    for (entity, (pos,)) in self.world.query::<(&Position,)>() {
+                        if player != entity {
+                            let msg = ServerMessage::PlayerConnected {
+                                id: entity.to_bits(),
+                                pos: Position { x: pos.x, y: pos.y }
+                            };
+                            
+                            self.server.send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
+                        }
+                    }
 
-            for (id, other_player) in self.world.players() {
-                let msg = ServerMessages::PlayerCreate {
-                    id: *id,
-                    pos: other_player.pos,
-                    health: other_player.health
-                };
-                self.server.send(client_id, msg);
-            }
+                    let msg = ServerMessage::PlayerConnected {
+                        id: player_id,
+                        pos: Position { x: 0., y: 0. }
+                    };
 
-            let player = Entity {
-                kind: EntityKind::Player,
-                pos: TILE_OFFSET.into(),
-                health: 100.0,
-                ..Default::default()
-            };
-            self.world.spawn_entity_from_id(client_id.into(), player);
+                    self.server.broadcast_reliable(&serialize(&msg).unwrap(), true);
+                    self.lobby.insert(addr.clone(), player_id);
+                }
+                ServerEvent::MessageReceived(addr, bytes) => {
+                    let client_msg = deserialize::<ClientMessage>(&bytes).unwrap();
+                    let player_id = self.lobby.get(&addr).unwrap();
 
-            let msg = ServerMessages::PlayerCreate {
-                id: client_id.into(),
-                pos: player.pos,
-                health: player.health
-            };
-            self.msg_queue.push_back(msg);
-        } else if let Some((client_id, reason)) = self.server.on_client_disconnect() {
-            println!("Client {} disconnected: {}", client_id, reason);
-                    
-            self.world.despawn_entity(client_id.into());
+                    match client_msg {
+                        ClientMessage::PlayerMove { left, up, right, down } => {
+                            for (entity, (pos,)) in self.world.query::<(&mut Position,)>() {
+                                if *player_id == entity.to_bits() {
+                                    pos.x += (right as i8 - left as i8) as f32;
+                                    pos.y += (down as i8 - up as i8) as f32;
 
-            let msg = ServerMessages::PlayerDelete { id: client_id.into() };
-            self.msg_queue.push_back(msg);
-        }
-
-        self.handle_player_input();
-
-        while let Some((_client_id, client_msg)) = self.server.get_client_msg() {
-            match client_msg {
-                ClientMessages::PlayerAttack { target } => {
-                    if let Some(enemy) = self.world.entities.get_mut(&target) {
-                        enemy.health -= 10.0;
-
-                        let msg = ServerMessages::EnemyUpdate { id: target, health: enemy.health };
-                        self.msg_queue.push_back(msg);
-    
-                        if enemy.health <= 0.0 {
-                            self.world.despawn_entity(target);
-    
-                            let msg = ServerMessages::EnemyDelete { id: target };
-                            self.msg_queue.push_back(msg);
+                                    let msg = ServerMessage::PlayerMoved {
+                                        id: *player_id,
+                                        pos: Position { x: pos.x, y: pos.y }
+                                    };
+        
+                                    self.server.broadcast(&serialize(&msg).unwrap())
+                                }
+                            };
                         }
                     }
                 }
+                _ => {}
             }
         }
-
-        if let Some(msg) = self.msg_queue.pop_front() {
-            self.server.broadcast(msg);
-        }
-
-        self.server.update(20);
     }
 
-    fn handle_player_input(&mut self) {
-        while let Some((client_id, input)) = self.server.get_client_input() {
-            let player = self.world.entities.get_mut(&client_id.into()).unwrap();
-    
-            player.vel.x = (input.right as i8 - input.left as i8) as f32;
-            player.vel.y = (input.down as i8 - input.up as i8) as f32;
+    fn update(&mut self) {
+        self.server.poll();
+        self.handle_events();
+    }
 
-            if let Some(mouse_target_pos) = input.mouse_target_pos {
-                player.pos = mouse_target_pos;
-            } else {
-                player.pos += player.vel * TILE_SIZE.into();
+    pub fn run(&mut self, fps: u64) {
+        let step = Duration::from_secs(1 / fps);
+
+        let mut previous_time = Instant::now();
+        let mut lag = Duration::ZERO;
+
+        loop {
+            let current_time = Instant::now();
+            let elapsed_time = current_time - previous_time;
+
+            previous_time = current_time;
+            lag += elapsed_time;
+
+            while lag >= step {
+                self.update();
+                self.world.run_systems();
+
+                lag -= step;
             }
 
-            if let Some(mouse_target) = input.mouse_target {
-                player.target = Some(mouse_target);
-            }
-    
-            let msg = ServerMessages::PlayerUpdate {
-                id: client_id.into(),
-                pos: player.pos,
-                target: player.target
-            };
-            self.server.broadcast(msg);
+            thread::sleep(step);
         }
     }
-    
 }

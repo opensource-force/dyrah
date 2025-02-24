@@ -12,9 +12,9 @@ hash cargo || {
     exit 1
 }
 
-cargo run --bin server &
+cargo run --release --bin server &
 serverPid=$!
 
-cargo run --bin client
+cargo run --release --bin client
 
 wait "$serverPid"
