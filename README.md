@@ -1,4 +1,7 @@
-A simple [Tibia](https://www.tibia.com/news/?subtopic=latestnews)-like RPG  
+<div align="center">
+    <h1>Dyrah</h1>
+    <p>A simple <a href="https://tibia.com">Tibia</a>-like MORPG written entirely in Rust</p>
+</div>
 
 ![Dyrah Screenshot](assets/screenshot.png)
 
