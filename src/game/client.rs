@@ -37,7 +37,7 @@ impl Game {
         let mut map = Map::new("assets/map.json", "assets/tiles.png").await;
         let player_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
 
-        map.update(&["base"], Map::viewport_from(vec2(0., 0.)));
+        map.update(&["base"], Map::viewport_from(0., 0.));
 
         world.add_resource(PlayerSprite { texture: player_tex, frame: (0., 0.) });
         
@@ -76,7 +76,7 @@ impl Game {
                                 if entity.to_bits() == id {
                                     self.map.update(
                                         &["base"],
-                                        Map::viewport_from(vec2(pos.x, pos.y))
+                                        Map::viewport_from(pos.x, pos.y)
                                     );
 
                                     position.x = pos.x;

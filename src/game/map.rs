@@ -36,12 +36,12 @@ impl Map {
         }
     }
 
-    pub fn viewport_from(pos: Vec2) -> Rect {
+    pub fn viewport_from(x: f32, y: f32) -> Rect {
         Rect::new(
-            pos.x - screen_width() / 2.0 - TILE_SIZE.x * 2.0,
-            pos.y - screen_height() / 2.0 - TILE_SIZE.y * 2.0,
-            screen_width() + TILE_SIZE.x * 2.0,
-            screen_height() + TILE_SIZE.y * 2.0
+            x - screen_width() / 2. - TILE_SIZE.x * 2.,
+            y - screen_height() / 2. - TILE_SIZE.y * 2.,
+            screen_width() + TILE_SIZE.x * 2.,
+            screen_height() + TILE_SIZE.y * 2.
         )
     }
 
