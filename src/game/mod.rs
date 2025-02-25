@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 pub mod server;
 pub mod client;
 mod map;
+mod camera;
 
 #[derive(Serialize, Deserialize)]
 struct Position {

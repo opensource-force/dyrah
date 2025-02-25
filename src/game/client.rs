@@ -3,7 +3,7 @@ use macroquad::prelude::*;
 use secs::prelude::{ExecutionMode, World};
 use wrym::{client::{Client, ClientEvent}, transport::LaminarTransport};
 
-use super::{map::{Map, TILE_SIZE}, ClientMessage, Position, ServerMessage};
+use super::{camera::Camera, map::{Map, TILE_SIZE}, ClientMessage, Position, ServerMessage};
 
 struct PlayerSprite {
     texture: Texture2D,
@@ -14,6 +14,7 @@ pub struct Game {
     client: Client<LaminarTransport>,
     world: World,
     map: Map,
+    camera: Camera,
     player_id: Option<u64>
 }
 
@@ -47,6 +48,7 @@ impl Game {
             client: Client::new(transport, "127.0.0.1:8080"),
             world,
             map,
+            camera: Camera::default(),
             player_id: None
         }
     }
@@ -78,6 +80,10 @@ impl Game {
                                         &["base"],
                                         Map::viewport_from(pos.x, pos.y)
                                     );
+                                    self.camera.attach_sized(
+                                        pos.x, pos.y, screen_width(), screen_height()
+                                    );
+                                    self.camera.set();
 
                                     position.x = pos.x;
                                     position.y = pos.y;
