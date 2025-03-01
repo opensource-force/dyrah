@@ -59,15 +59,12 @@ impl Game {
                         ClientMessage::PlayerMove { left, up, right, down } => {
                             for (entity, (pos,)) in self.world.query::<(&mut Position,)>() {
                                 if *player_id == entity.to_bits() {
-                                    let pos_x = (right as i8 - left as i8) as f32;
-                                    let pos_y = (down as i8 - up as i8) as f32;    
-                                    let new_x = pos.x + pos_x;
-                                    let new_y = pos.y + pos_y;
+                                    let pos_x = pos.x + (right as i8 - left as i8) as f32;
+                                    let pos_y = pos.y + (down as i8 - up as i8) as f32;
 
-                                    if self.map.is_walkable("props", new_x as u32, new_y as u32) {
-                                        pos.x = new_x;
-                                        pos.y = new_y;
-
+                                    if self.map.is_walkable("props", pos_x, pos_y) {
+                                        pos.x = pos_x;
+                                        pos.y = pos_y;
 
                                         let msg = ServerMessage::PlayerMoved {
                                             id: *player_id,

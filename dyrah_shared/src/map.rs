@@ -31,15 +31,31 @@ impl TiledMap {
         self.layers.iter().find(|l| l.name == layer_name)
     }
 
-    pub fn is_walkable(&self, layer_name: &str, x: u32, y: u32) -> bool {
-        if let Some(layer) = self.get_layer(layer_name) {
-            if x < layer.width && y < layer.height {
-                let i = (y * layer.width + x) as usize;
-                
-                return layer.data[i] == 0;
+    pub fn is_walkable(&self, layer_name: &str, x: f32, y: f32) -> bool {
+        let layer = self.get_layer(layer_name).unwrap();
+        let tile_left = (x / self.tilewidth as f32).floor() as u32;
+        let tile_right = ((x + self.tilewidth as f32) / self.tilewidth as f32).floor() as u32;
+        let tile_top = (y / self.tileheight as f32).floor() as u32;
+        let tile_bottom = ((y + self.tileheight as f32) / self.tileheight as f32).floor() as u32;
+    
+        for tile_y in tile_top..=tile_bottom {
+            for tile_x in tile_left..=tile_right {
+                if tile_x >= layer.width || tile_y >= layer.height {
+                    return false;
+                }
+    
+                let index = (tile_y * layer.width + tile_x) as usize;
+    
+                if index >= layer.data.len() {
+                    return false;
+                }
+    
+                if layer.data[index] != 0 {
+                    return false;
+                }
             }
         }
-        
+    
         true
     }
 }
