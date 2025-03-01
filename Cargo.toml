@@ -11,10 +11,16 @@ path = "bin/server.rs"
 name = "client"
 path = "bin/client.rs"
 
+[workspace]
+members = [
+    "dyrah*"
+]
+resolver = "2"
+
 [dependencies]
-bincode = "1.3.3"
 macroquad = "0.4.13"
-macroquad-tiled = "0.2.1"
-secs = { git = "https://github.com/wick3dr0se/secs", version = "0.1.0" }
-serde = { version = "1.0.218", features = ["derive"] }
-wrym = { git = "https://github.com/wick3dr0se/wrym", version = "0.1.0" }
+
+dyrah_server = { path = "dyrah_server" }
+dyrah_client = { path = "dyrah_client" }
+
+[dev-dependencies]

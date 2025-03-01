@@ -1,23 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-pub mod server;
-pub mod client;
-mod map;
-mod camera;
+pub mod map;
 
 #[derive(Serialize, Deserialize)]
-struct Position {
-    x: f32,
-    y: f32
+pub struct Position {
+    pub x: f32,
+    pub y: f32
 }
 
 #[derive(Serialize, Deserialize)]
-enum ServerMessage {
+pub enum ServerMessage {
     PlayerConnected { id: u64, pos: Position },
     PlayerMoved { id: u64, pos: Position }
 }
 
 #[derive(Serialize, Deserialize)]
-enum ClientMessage {
+pub enum ClientMessage {
     PlayerMove { left: bool, up: bool, right: bool, down: bool }
 }

@@ -1,15 +1,15 @@
 use std::{collections::HashMap, thread, time::{Duration, Instant}};
 
 use bincode::{deserialize, serialize};
+use dyrah_shared::{map::TiledMap, ClientMessage, Position, ServerMessage};
 use secs::prelude::World;
 use wrym::{server::{Server, ServerConfig, ServerEvent}, transport::LaminarTransport};
-
-use super::{ClientMessage, Position, ServerMessage};
 
 pub struct Game {
     server: Server<LaminarTransport>,
     lobby: HashMap<String, u64>,
-    world: World
+    world: World,
+    map: TiledMap
 }
 
 impl Game {
@@ -19,7 +19,8 @@ impl Game {
         Self {
             server: Server::new(transport, ServerConfig::default()),
             lobby: HashMap::new(),
-            world: World::default()
+            world: World::default(),
+            map: TiledMap::new("assets/map.json")
         }
     }
 
@@ -48,7 +49,7 @@ impl Game {
                     };
 
                     self.server.broadcast_reliable(&serialize(&msg).unwrap(), true);
-                    self.lobby.insert(addr.clone(), player_id);
+                    self.lobby.insert(addr, player_id);
                 }
                 ServerEvent::MessageReceived(addr, bytes) => {
                     let client_msg = deserialize::<ClientMessage>(&bytes).unwrap();
@@ -58,15 +59,23 @@ impl Game {
                         ClientMessage::PlayerMove { left, up, right, down } => {
                             for (entity, (pos,)) in self.world.query::<(&mut Position,)>() {
                                 if *player_id == entity.to_bits() {
-                                    pos.x += (right as i8 - left as i8) as f32;
-                                    pos.y += (down as i8 - up as i8) as f32;
+                                    let pos_x = (right as i8 - left as i8) as f32;
+                                    let pos_y = (down as i8 - up as i8) as f32;    
+                                    let new_x = pos.x + pos_x;
+                                    let new_y = pos.y + pos_y;
 
-                                    let msg = ServerMessage::PlayerMoved {
-                                        id: *player_id,
-                                        pos: Position { x: pos.x, y: pos.y }
-                                    };
-        
-                                    self.server.broadcast(&serialize(&msg).unwrap())
+                                    if self.map.is_walkable("props", new_x as u32, new_y as u32) {
+                                        pos.x = new_x;
+                                        pos.y = new_y;
+
+
+                                        let msg = ServerMessage::PlayerMoved {
+                                            id: *player_id,
+                                            pos: Position { x: pos.x, y: pos.y }
+                                        };
+            
+                                        self.server.broadcast(&serialize(&msg).unwrap())
+                                    }
                                 }
                             };
                         }
@@ -84,16 +93,15 @@ impl Game {
 
     pub fn run(&mut self, fps: u64) {
         let step = Duration::from_secs(1 / fps);
-
         let mut previous_time = Instant::now();
         let mut lag = Duration::ZERO;
 
         loop {
-            let current_time = Instant::now();
-            let elapsed_time = current_time - previous_time;
+            let now = Instant::now();
+            let elapsed = now - previous_time;
 
-            previous_time = current_time;
-            lag += elapsed_time;
+            previous_time = now;
+            lag += elapsed;
 
             while lag >= step {
                 self.update();

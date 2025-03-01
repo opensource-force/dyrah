@@ -133,12 +133,38 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 name = "dyrah"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "dyrah_client",
+ "dyrah_server",
  "macroquad",
- "macroquad-tiled",
+]
+
+[[package]]
+name = "dyrah_client"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "dyrah_shared",
+ "macroquad",
  "secs",
- "serde",
  "wrym",
+]
+
+[[package]]
+name = "dyrah_server"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "dyrah_shared",
+ "secs",
+ "wrym",
+]
+
+[[package]]
+name = "dyrah_shared"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -216,6 +242,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "itoa"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
+
+[[package]]
 name = "laminar"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -264,16 +296,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "macroquad-tiled"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b8791e385de2f6d399e9e4624a405e23c06855df35c134903fefc3bfb7241c"
-dependencies = [
- "macroquad",
- "nanoserde",
-]
-
-[[package]]
 name = "macroquad_macro"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,6 +309,12 @@ checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "miniquad"
@@ -309,21 +337,6 @@ dependencies = [
  "adler2",
  "simd-adler32",
 ]
-
-[[package]]
-name = "nanoserde"
-version = "0.1.37"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de9cf844ab1e25a0353525bd74cb889843a6215fa4a0d156fd446f4857a1b99"
-dependencies = [
- "nanoserde-derive",
-]
-
-[[package]]
-name = "nanoserde-derive"
-version = "0.1.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e943b2c21337b7e3ec6678500687cdc741b7639ad457f234693352075c082204"
 
 [[package]]
 name = "ndk-sys"
@@ -461,6 +474,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ea1a2d0a644769cc99faa24c3ad26b379b786fe7c36fd3c546254801650e6dd"
+
+[[package]]
 name = "secs"
 version = "0.1.0"
 source = "git+https://github.com/wick3dr0se/secs#40662e2551400d111ad594c7dfab5a2c10a2508e"
@@ -488,6 +507,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.139"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44f86c3acccc9c65b153fe1b85a3be07fe5515274ec9f0653b4a0875731c72a6"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
 ]
 
 [[package]]

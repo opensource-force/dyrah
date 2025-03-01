@@ -1,19 +1,19 @@
 use bincode::{deserialize, serialize};
-use macroquad::prelude::*;
+use macroquad::{prelude::*, ui::root_ui};
 use secs::prelude::{ExecutionMode, World};
 use wrym::{client::{Client, ClientEvent}, transport::LaminarTransport};
 
-use super::{camera::Camera, map::{Map, TILE_SIZE}, ClientMessage, Position, ServerMessage};
+use dyrah_shared::{ClientMessage, Position, ServerMessage};
 
-struct PlayerSprite {
-    texture: Texture2D,
-    frame: (f32, f32)
-}
+use crate::{camera::Camera, map::TiledMap, PlayerSprite};
+
+const TILE_SIZE: Vec2 = vec2(32., 32.);
 
 pub struct Game {
     client: Client<LaminarTransport>,
     world: World,
-    map: Map,
+    map: TiledMap,
+    map_texture: Texture2D,
     camera: Camera,
     player_id: Option<u64>
 }
@@ -25,7 +25,10 @@ fn render_system(world: &World) {
 
         draw_texture_ex(
             &player_spr.texture, pos.x, pos.y, WHITE, DrawTextureParams {
-                source: Some(Rect::new(0., 0., TILE_SIZE.x, TILE_SIZE.y)), ..Default::default()
+                source: Some(Rect::new(
+                    player_spr.frame.0, player_spr.frame.1, TILE_SIZE.x, TILE_SIZE.y
+                )),
+                ..Default::default()
             }
         );
     }
@@ -35,10 +38,10 @@ impl Game {
     pub async fn new() -> Self {
         let transport = LaminarTransport::new("127.0.0.1:0");
         let mut world = World::default();
-        let mut map = Map::new("assets/map.json", "assets/tiles.png").await;
+        let map = TiledMap::new("assets/map.json");
         let player_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
 
-        map.update(&["base"], Map::viewport_from(0., 0.));
+        set_default_filter_mode(FilterMode::Nearest);
 
         world.add_resource(PlayerSprite { texture: player_tex, frame: (0., 0.) });
         
@@ -48,6 +51,7 @@ impl Game {
             client: Client::new(transport, "127.0.0.1:8080"),
             world,
             map,
+            map_texture: load_texture("assets/tiles.png").await.unwrap(),
             camera: Camera::default(),
             player_id: None
         }
@@ -76,17 +80,17 @@ impl Game {
                         ServerMessage::PlayerMoved { id, pos } => {
                             for (entity, (position,)) in self.world.query::<(&mut Position,)>() {
                                 if entity.to_bits() == id {
-                                    self.map.update(
-                                        &["base"],
-                                        Map::viewport_from(pos.x, pos.y)
-                                    );
+                                    let start_pos = vec2(position.x, position.y);
+                                    let target_pos = vec2(pos.x, pos.y);
+                                    let speed = 10.;
+
+                                    position.x = start_pos.x.lerp(target_pos.x, speed * get_frame_time());
+                                    position.y = start_pos.y.lerp(target_pos.y, speed * get_frame_time());
+
                                     self.camera.attach_sized(
-                                        pos.x, pos.y, screen_width(), screen_height()
+                                        position.x, position.y, screen_width(), screen_height()
                                     );
                                     self.camera.set();
-
-                                    position.x = pos.x;
-                                    position.y = pos.y;
                                 }
                             }
                         }
@@ -99,6 +103,8 @@ impl Game {
     fn update(&mut self) {
         self.client.poll();
         self.handle_events();
+
+        root_ui().label(None, &format!("FPS: {}", get_fps()));
 
         let left = is_key_down(KeyCode::A) || is_key_down(KeyCode::Left);
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
@@ -116,7 +122,7 @@ impl Game {
             clear_background(SKYBLUE);
 
             self.update();
-            self.map.render();
+            self.map.draw_tiles(&self.map_texture);
             self.world.run_systems();
 
             next_frame().await;

@@ -1,5 +1,4 @@
-use dyrah::game::server::Game;
-
+use dyrah_server::game::Game;
 
 fn main() {
     let mut game = Game::new();

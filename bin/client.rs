@@ -1,4 +1,4 @@
-use dyrah::game::client::Game;
+use dyrah_client::game::Game;
 use macroquad::{miniquad::conf::Platform, window::Conf};
 
 fn _window_conf() -> Conf {
