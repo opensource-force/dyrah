@@ -13,20 +13,21 @@ The world is unforgiving—dying means losing character progression, valuable it
 
 ## Getting Started
 ### Dependencies
-- Rust (stable version)
-- Cargo (Rust package manager)
+- Rust (stable)
 
-### Self Hosting & Compiling From Source
-Download Dyrah  
+### Compiling From Source
+**Download Dyrah**  
 `git clone https://github.com/opensource-force/dyrah; cd dyrah`
 
-Execute the server  
-`cargo run --bin server --release`
+**Compiling/executing the server**  
+`cargo run -rp dyrah_server`
 
-And execute the client  
-`cargo run --bin client --release`
+**Compiling/executing the client**  
+`cargo run -rp dyrah_client`
 
-Or execute `exec.sh` to run the server & client simultaneously
+*For detailed build instructions for the client, defer to the [Macroquad build instructions](https://github.com/not-fl3/macroquad#build-instructions)*
+
+*Alternatively, execute `exec.sh` to run the server & client simultaneously*
 
 ## Features & Development
 Dyrah is in early stages of development, so expect bugs and missing features
@@ -36,9 +37,9 @@ Dyrah is in early stages of development, so expect bugs and missing features
 - [x] Entity management (ECS)
 - [x] Input handling
 - [x] Tilemap
-- [ ] Camera
-- [ ] Collision detection
-- [ ] Combat System
+- [x] Camera
+- [x] Collision detection
+- [ ] Combat system
 - [ ] Tile-based movement
 - [ ] AI behavior
 - [ ] Pathfinding
@@ -65,11 +66,10 @@ Dyrah is in early stages of development, so expect bugs and missing features
   
 ## Resources
 ### Recommended Tools
-Map files are created with a map editor such as [Tiled](https://www.mapeditor.org/), in which the capability to export as a JSON file is provided. Macroquad-tiled utilizes this JSON information to properly iterate a PNG tileset (easily made with a pixel art editor like [Aseprite](https://www.aseprite.org/)), which doubles as a sprite editor
+Map files are created with the [Tiled](https://www.mapeditor.org/) map editor, in which the capability to export as a JSON file is provided. This JSON information is utilized to render a tileset, which can be created with a pixel art editor like [Aseprite](https://www.aseprite.org/)
 
 ### Docs
 - [Macroquad](https://docs.rs/macroquad/latest/macroquad/)
-- [Macroquad-tiled](https://docs.rs/macroquad-tiled/latest/macroquad_tiled/)
 
 ### Guides
 - **Macroquad**
@@ -86,7 +86,6 @@ Map files are created with a map editor such as [Tiled](https://www.mapeditor.or
 - **Macroquad**
     - [Awesome](https://github.com/ozkriff/awesome-quads)
     - [Repository](https://github.com/not-fl3/macroquad/tree/master/examples)
-    - [Macroquad-tiled mesh](https://github.com/Jakkestt/tiled_quad/blob/main/src/tiled_quad.rs)
     - [Rusty roguelike](https://github.com/rust-gamedev/rust-game-ports/tree/master/rusty_roguelike-macroquad)
 - [SDL2](https://github.com/wick3dr0se/sdl-game/)
 
@@ -100,4 +99,4 @@ Dyrah is actively discussed in the [Open Source Force Discord](https://opensourc
 ## Credits
 Thanks to the open source community for making projects like this possible and especially OSF (Open Source Force) for their direct contributions
 
-Thanks to [Seth on itch.io](https://itch.io/profile/sethbb) for the [32Rogues tilset](https://sethbb.itch.io/32rogues) used to prototype the development of Dyrah
+Thanks to [Seth on itch.io](https://itch.io/profile/sethbb) for the [32rogues](https://sethbb.itch.io/32rogues) tileset used to prototype the development of Dyrah

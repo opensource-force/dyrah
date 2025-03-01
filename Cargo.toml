@@ -1,26 +1,6 @@
-[package]
-name = "dyrah"
-version = "0.1.0"
-edition = "2024"
-
-[[bin]]
-name = "server"
-path = "bin/server.rs"
-
-[[bin]]
-name = "client"
-path = "bin/client.rs"
-
 [workspace]
 members = [
-    "dyrah*"
+    "dyrah_server",
+    "dyrah_client",
 ]
 resolver = "2"
-
-[dependencies]
-macroquad = "0.4.13"
-
-dyrah_server = { path = "dyrah_server" }
-dyrah_client = { path = "dyrah_client" }
-
-[dev-dependencies]

@@ -12,9 +12,9 @@ hash cargo || {
     exit 1
 }
 
-cargo run --release --bin server &
+cargo run -rp dyrah_server &
 serverPid=$!
 
-cargo run --release --bin client
+cargo run -rp dyrah_client
 
 wait "$serverPid"
