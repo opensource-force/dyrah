@@ -83,6 +83,8 @@ Map files are created with the [Tiled](https://www.mapeditor.org/) map editor, i
 - [MDN Game Development](https://developer.mozilla.org/en-US/docs/Games)
 
 ### Examples
+- [Wrym](https://github.com/wick3dr0se/wrym/tree/main/examples)
+- [Secs](https://github.com/wick3dr0se/secs/tree/main/examples)
 - **Macroquad**
     - [Awesome](https://github.com/ozkriff/awesome-quads)
     - [Repository](https://github.com/not-fl3/macroquad/tree/master/examples)
