@@ -1,9 +1,13 @@
-use macroquad::{camera::{set_camera, Camera2D}, math::{vec2, Rect}, window::{screen_height, screen_width}};
+use macroquad::{
+    camera::{Camera2D, set_camera},
+    math::{Rect, vec2},
+    window::{screen_height, screen_width},
+};
 
 pub struct Camera {
     inner: Camera2D,
     width: f32,
-    height: f32
+    height: f32,
 }
 
 impl Camera {
@@ -11,10 +15,10 @@ impl Camera {
         if width != self.width || height != self.height {
             let size = Rect::new(0., 0., width, -height);
             self.inner = Camera2D::from_display_rect(size);
-            
+
             (self.width, self.height) = (width, height);
         }
-        
+
         self.inner.target = vec2(x, y);
     }
 
@@ -28,14 +32,14 @@ impl Default for Camera {
         let (w, h) = (screen_width(), screen_height());
         let size = Rect::new(0., 0., w, -h);
         let mut camera = Camera2D::from_display_rect(size);
-        
+
         camera.target = vec2(0., 0.);
         set_camera(&camera);
 
         Self {
             inner: camera,
             width: w,
-            height: h
+            height: h,
         }
     }
 }

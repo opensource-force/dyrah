@@ -1,15 +1,22 @@
-use std::{collections::HashMap, thread, time::{Duration, Instant}};
+use std::{
+    collections::HashMap,
+    thread,
+    time::{Duration, Instant},
+};
 
 use bincode::{deserialize, serialize};
-use dyrah_shared::{map::TiledMap, ClientMessage, Position, ServerMessage};
+use dyrah_shared::{ClientMessage, Position, ServerMessage, map::TiledMap};
 use secs::prelude::World;
-use wrym::{server::{Server, ServerConfig, ServerEvent}, transport::LaminarTransport};
+use wrym::{
+    server::{Server, ServerConfig, ServerEvent},
+    transport::LaminarTransport,
+};
 
 pub struct Game {
     server: Server<LaminarTransport>,
     lobby: HashMap<String, u64>,
     world: World,
-    map: TiledMap
+    map: TiledMap,
 }
 
 impl Game {
@@ -20,7 +27,7 @@ impl Game {
             server: Server::new(transport, ServerConfig::default()),
             lobby: HashMap::new(),
             world: World::default(),
-            map: TiledMap::new("assets/map.json")
+            map: TiledMap::new("assets/map.json"),
         }
     }
 
@@ -32,23 +39,25 @@ impl Game {
                     let player_id = player.to_bits();
 
                     // sync existing players with new clients
-                    for (entity, (pos,)) in self.world.query::<(&Position,)>() {
+                    self.world.query::<(&Position,)>(|entity, (pos,)| {
                         if player != entity {
                             let msg = ServerMessage::PlayerConnected {
                                 id: entity.to_bits(),
-                                pos: Position { x: pos.x, y: pos.y }
+                                pos: Position { x: pos.x, y: pos.y },
                             };
-                            
-                            self.server.send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
+
+                            self.server
+                                .send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
                         }
-                    }
+                    });
 
                     let msg = ServerMessage::PlayerConnected {
                         id: player_id,
-                        pos: Position { x: 0., y: 0. }
+                        pos: Position { x: 0., y: 0. },
                     };
 
-                    self.server.broadcast_reliable(&serialize(&msg).unwrap(), true);
+                    self.server
+                        .broadcast_reliable(&serialize(&msg).unwrap(), true);
                     self.lobby.insert(addr, player_id);
                 }
                 ServerEvent::MessageReceived(addr, bytes) => {
@@ -56,8 +65,13 @@ impl Game {
                     let player_id = self.lobby.get(&addr).unwrap();
 
                     match client_msg {
-                        ClientMessage::PlayerMove { left, up, right, down } => {
-                            for (entity, (pos,)) in self.world.query::<(&mut Position,)>() {
+                        ClientMessage::PlayerMove {
+                            left,
+                            up,
+                            right,
+                            down,
+                        } => {
+                            self.world.query::<(&mut Position,)>(|entity, (pos,)| {
                                 if *player_id == entity.to_bits() {
                                     let pos_x = pos.x + (right as i8 - left as i8) as f32;
                                     let pos_y = pos.y + (down as i8 - up as i8) as f32;
@@ -68,13 +82,13 @@ impl Game {
 
                                         let msg = ServerMessage::PlayerMoved {
                                             id: *player_id,
-                                            pos: Position { x: pos.x, y: pos.y }
+                                            pos: Position { x: pos.x, y: pos.y },
                                         };
-            
+
                                         self.server.broadcast(&serialize(&msg).unwrap())
                                     }
                                 }
-                            };
+                            });
                         }
                     }
                 }

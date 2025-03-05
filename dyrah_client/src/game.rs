@@ -1,11 +1,14 @@
 use bincode::{deserialize, serialize};
 use macroquad::{prelude::*, ui::root_ui};
 use secs::prelude::{ExecutionMode, World};
-use wrym::{client::{Client, ClientEvent}, transport::LaminarTransport};
+use wrym::{
+    client::{Client, ClientEvent},
+    transport::LaminarTransport,
+};
 
 use dyrah_shared::{ClientMessage, Position, ServerMessage};
 
-use crate::{camera::Camera, map::TiledMap, PlayerSprite};
+use crate::{PlayerSprite, camera::Camera, map::TiledMap};
 
 const TILE_SIZE: Vec2 = vec2(32., 32.);
 
@@ -15,23 +18,30 @@ pub struct Game {
     map: TiledMap,
     map_texture: Texture2D,
     camera: Camera,
-    player_id: Option<u64>
+    player_id: Option<u64>,
 }
 
 // systems
 fn render_system(world: &World) {
-    for (_, (pos,)) in world.query::<(&Position,)>() {
+    world.query::<(&Position,)>(|_, (pos,)| {
         let player_spr = world.get_resource::<PlayerSprite>().unwrap();
 
         draw_texture_ex(
-            &player_spr.texture, pos.x, pos.y, WHITE, DrawTextureParams {
+            &player_spr.texture,
+            pos.x,
+            pos.y,
+            WHITE,
+            DrawTextureParams {
                 source: Some(Rect::new(
-                    player_spr.frame.0, player_spr.frame.1, TILE_SIZE.x, TILE_SIZE.y
+                    player_spr.frame.0,
+                    player_spr.frame.1,
+                    TILE_SIZE.x,
+                    TILE_SIZE.y,
                 )),
                 ..Default::default()
-            }
+            },
         );
-    }
+    });
 }
 
 impl Game {
@@ -43,8 +53,11 @@ impl Game {
 
         set_default_filter_mode(FilterMode::Nearest);
 
-        world.add_resource(PlayerSprite { texture: player_tex, frame: (0., 0.) });
-        
+        world.add_resource(PlayerSprite {
+            texture: player_tex,
+            frame: (0., 0.),
+        });
+
         world.add_system(render_system, ExecutionMode::Parallel);
 
         Self {
@@ -53,7 +66,7 @@ impl Game {
             map,
             map_texture: load_texture("assets/tiles.png").await.unwrap(),
             camera: Camera::default(),
-            player_id: None
+            player_id: None,
         }
     }
 
@@ -78,21 +91,26 @@ impl Game {
                             }
                         }
                         ServerMessage::PlayerMoved { id, pos } => {
-                            for (entity, (position,)) in self.world.query::<(&mut Position,)>() {
+                            self.world.query::<(&mut Position,)>(|entity, (position,)| {
                                 if entity.to_bits() == id {
                                     let start_pos = vec2(position.x, position.y);
                                     let target_pos = vec2(pos.x, pos.y);
                                     let speed = 10.;
 
-                                    position.x = start_pos.x.lerp(target_pos.x, speed * get_frame_time());
-                                    position.y = start_pos.y.lerp(target_pos.y, speed * get_frame_time());
+                                    position.x =
+                                        start_pos.x.lerp(target_pos.x, speed * get_frame_time());
+                                    position.y =
+                                        start_pos.y.lerp(target_pos.y, speed * get_frame_time());
 
                                     self.camera.attach_sized(
-                                        position.x, position.y, screen_width(), screen_height()
+                                        position.x,
+                                        position.y,
+                                        screen_width(),
+                                        screen_height(),
                                     );
                                     self.camera.set();
                                 }
-                            }
+                            });
                         }
                     }
                 }
@@ -112,11 +130,16 @@ impl Game {
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
 
         if left || up || down || right {
-            let msg = ClientMessage::PlayerMove { left, up, right, down };
+            let msg = ClientMessage::PlayerMove {
+                left,
+                up,
+                right,
+                down,
+            };
             self.client.send(&serialize(&msg).unwrap());
         }
     }
-    
+
     pub async fn run(&mut self) {
         loop {
             clear_background(SKYBLUE);
