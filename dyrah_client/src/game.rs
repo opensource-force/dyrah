@@ -1,29 +1,17 @@
 use bincode::{deserialize, serialize};
 use macroquad::{prelude::*, ui::root_ui};
-use secs::prelude::{ExecutionMode, World};
+use secs::World;
 use wrym::{
     client::{Client, ClientEvent},
-    transport::LaminarTransport,
+    transport::Transport,
 };
 
-use dyrah_shared::{ClientMessage, Position, ServerMessage};
+use dyrah_shared::{ClientMessage, Position, ServerMessage, TargetPosition, map::TILE_SIZE};
 
 use crate::{PlayerSprite, camera::Camera, map::TiledMap};
 
-const TILE_SIZE: Vec2 = vec2(32., 32.);
-
-pub struct Game {
-    client: Client<LaminarTransport>,
-    world: World,
-    map: TiledMap,
-    map_texture: Texture2D,
-    camera: Camera,
-    player_id: Option<u64>,
-}
-
-// systems
 fn render_system(world: &World) {
-    world.query::<(&Position,)>(|_, (pos,)| {
+    world.query::<(&Position, &TargetPosition)>(|_, (pos, target_pos)| {
         let player_spr = world.get_resource::<PlayerSprite>().unwrap();
 
         draw_texture_ex(
@@ -35,18 +23,38 @@ fn render_system(world: &World) {
                 source: Some(Rect::new(
                     player_spr.frame.0,
                     player_spr.frame.1,
-                    TILE_SIZE.x,
-                    TILE_SIZE.y,
+                    TILE_SIZE,
+                    TILE_SIZE,
                 )),
                 ..Default::default()
             },
         );
+
+        draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2.0, BLUE);
+        draw_rectangle_lines(
+            target_pos.x,
+            target_pos.y,
+            TILE_SIZE,
+            TILE_SIZE,
+            2.0,
+            ORANGE,
+        );
     });
+}
+
+pub struct Game {
+    client: Client<Transport>,
+    world: World,
+    map: TiledMap,
+    map_texture: Texture2D,
+    camera: Camera,
+    player_id: Option<u64>,
+    frame_time: f32,
 }
 
 impl Game {
     pub async fn new() -> Self {
-        let transport = LaminarTransport::new("127.0.0.1:0");
+        let transport = Transport::new("127.0.0.1:0");
         let mut world = World::default();
         let map = TiledMap::new("assets/map.json");
         let player_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
@@ -58,7 +66,7 @@ impl Game {
             frame: (0., 0.),
         });
 
-        world.add_system(render_system, ExecutionMode::Parallel);
+        world.add_system(render_system);
 
         Self {
             client: Client::new(transport, "127.0.0.1:8080"),
@@ -67,6 +75,7 @@ impl Game {
             map_texture: load_texture("assets/tiles.png").await.unwrap(),
             camera: Camera::default(),
             player_id: None,
+            frame_time: get_frame_time(),
         }
     }
 
@@ -83,34 +92,33 @@ impl Game {
                     let server_msg = deserialize::<ServerMessage>(&bytes).unwrap();
 
                     match server_msg {
-                        ServerMessage::PlayerConnected { id, pos } => {
-                            self.world.spawn((pos,));
+                        ServerMessage::PlayerConnected { id, position } => {
+                            self.world
+                                .spawn((position, TargetPosition { x: 0., y: 0. }));
 
                             if self.player_id.is_none() {
                                 self.player_id = Some(id);
                             }
                         }
-                        ServerMessage::PlayerMoved { id, pos } => {
-                            self.world.query::<(&mut Position,)>(|entity, (position,)| {
-                                if entity.to_bits() == id {
-                                    let start_pos = vec2(position.x, position.y);
-                                    let target_pos = vec2(pos.x, pos.y);
-                                    let speed = 10.;
+                        ServerMessage::PlayerMoved {
+                            id,
+                            target_position,
+                        } => {
+                            self.world.query::<(&mut Position, &mut TargetPosition)>(
+                                |entity, (pos, target_pos)| {
+                                    if entity.id() == id {
+                                        *target_pos = target_position;
 
-                                    position.x =
-                                        start_pos.x.lerp(target_pos.x, speed * get_frame_time());
-                                    position.y =
-                                        start_pos.y.lerp(target_pos.y, speed * get_frame_time());
-
-                                    self.camera.attach_sized(
-                                        position.x,
-                                        position.y,
-                                        screen_width(),
-                                        screen_height(),
-                                    );
-                                    self.camera.set();
-                                }
-                            });
+                                        self.camera.attach_sized(
+                                            pos.x,
+                                            pos.y,
+                                            screen_width(),
+                                            screen_height(),
+                                        );
+                                        self.camera.set();
+                                    }
+                                },
+                            );
                         }
                     }
                 }
@@ -138,6 +146,12 @@ impl Game {
             };
             self.client.send(&serialize(&msg).unwrap());
         }
+
+        self.world
+            .query::<(&mut Position, &TargetPosition)>(|_, (pos, target_pos)| {
+                pos.x = pos.x.lerp(target_pos.x, 5.0 * self.frame_time);
+                pos.y = pos.y.lerp(target_pos.y, 5.0 * self.frame_time);
+            });
     }
 
     pub async fn run(&mut self) {

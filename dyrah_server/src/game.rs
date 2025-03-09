@@ -5,15 +5,18 @@ use std::{
 };
 
 use bincode::{deserialize, serialize};
-use dyrah_shared::{ClientMessage, Position, ServerMessage, map::TiledMap};
-use secs::prelude::World;
+use dyrah_shared::{
+    ClientMessage, Position, ServerMessage, TargetPosition,
+    map::{TILE_SIZE, TiledMap},
+};
+use secs::World;
 use wrym::{
     server::{Server, ServerConfig, ServerEvent},
-    transport::LaminarTransport,
+    transport::Transport,
 };
 
 pub struct Game {
-    server: Server<LaminarTransport>,
+    server: Server<Transport>,
     lobby: HashMap<String, u64>,
     world: World,
     map: TiledMap,
@@ -21,7 +24,7 @@ pub struct Game {
 
 impl Game {
     pub fn new() -> Self {
-        let transport = LaminarTransport::new("127.0.0.1:8080");
+        let transport = Transport::new("127.0.0.1:8080");
 
         Self {
             server: Server::new(transport, ServerConfig::default()),
@@ -35,15 +38,17 @@ impl Game {
         while let Some(event) = self.server.recv_event() {
             match event {
                 ServerEvent::ClientConnected(addr) => {
-                    let player = self.world.spawn((Position { x: 0., y: 0. },));
-                    let player_id = player.to_bits();
+                    let player = self
+                        .world
+                        .spawn((Position { x: 0., y: 0. }, TargetPosition { x: 0., y: 0. }));
+                    let player_id = player.id();
 
                     // sync existing players with new clients
                     self.world.query::<(&Position,)>(|entity, (pos,)| {
                         if player != entity {
                             let msg = ServerMessage::PlayerConnected {
-                                id: entity.to_bits(),
-                                pos: Position { x: pos.x, y: pos.y },
+                                id: entity.id(),
+                                position: Position { x: pos.x, y: pos.y },
                             };
 
                             self.server
@@ -53,7 +58,7 @@ impl Game {
 
                     let msg = ServerMessage::PlayerConnected {
                         id: player_id,
-                        pos: Position { x: 0., y: 0. },
+                        position: Position { x: 0., y: 0. },
                     };
 
                     self.server
@@ -72,18 +77,26 @@ impl Game {
                             down,
                         } => {
                             self.world.query::<(&mut Position,)>(|entity, (pos,)| {
-                                if *player_id == entity.to_bits() {
-                                    let pos_x = pos.x + (right as i8 - left as i8) as f32;
-                                    let pos_y = pos.y + (down as i8 - up as i8) as f32;
+                                if *player_id == entity.id() {
+                                    let target_pos_x =
+                                        pos.x + (right as i8 - left as i8) as f32 * TILE_SIZE;
+                                    let target_pos_y =
+                                        pos.y + (down as i8 - up as i8) as f32 * TILE_SIZE;
 
-                                    if self.map.is_walkable("props", pos_x, pos_y) {
-                                        pos.x = pos_x;
-                                        pos.y = pos_y;
-
+                                    if let Some((x, y)) =
+                                        self.map.get_tile_center(target_pos_x, target_pos_y)
+                                    {
+                                        let offset = TILE_SIZE / 2.;
                                         let msg = ServerMessage::PlayerMoved {
                                             id: *player_id,
-                                            pos: Position { x: pos.x, y: pos.y },
+                                            target_position: TargetPosition {
+                                                x: target_pos_x,
+                                                y: target_pos_y,
+                                            },
                                         };
+
+                                        pos.x = x - offset;
+                                        pos.y = y - offset;
 
                                         self.server.broadcast(&serialize(&msg).unwrap())
                                     }

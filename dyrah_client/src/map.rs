@@ -4,7 +4,6 @@ use macroquad::{
     math::Rect,
     texture::{DrawTextureParams, Texture2D, draw_texture_ex},
 };
-
 pub struct TiledMap {
     tiled_map: Inner,
 }
