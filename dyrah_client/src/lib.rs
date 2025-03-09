@@ -4,7 +4,13 @@ mod camera;
 pub mod game;
 mod map;
 
+pub struct PlayerTexture(Texture2D);
+pub struct CreatureTexture(Texture2D);
+
 pub struct PlayerSprite {
-    texture: Texture2D,
+    frame: (f32, f32),
+}
+
+pub struct CreatureSprite {
     frame: (f32, f32),
 }
