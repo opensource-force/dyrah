@@ -15,6 +15,8 @@ hash cargo || {
 cargo run -rp dyrah_server &
 serverPid=$!
 
+sleep .5
+
 cargo run -rp dyrah_client
 
 wait "$serverPid"
