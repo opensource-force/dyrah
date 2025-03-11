@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 
 pub const TILE_SIZE: f32 = 32.;
+pub const TILE_OFFSET: f32 = 16.;
 
 #[derive(Deserialize, Debug)]
 pub struct TiledMap {
@@ -47,6 +48,6 @@ impl TiledMap {
         let center_x = tile_x * self.tilewidth as f32 + (self.tilewidth as f32 / 2.);
         let center_y = tile_y * self.tileheight as f32 + (self.tileheight as f32 / 2.);
 
-        Some((center_x, center_y))
+        Some((center_x - TILE_OFFSET, center_y - TILE_OFFSET))
     }
 }

@@ -34,16 +34,29 @@ pub enum ServerMessage {
         position: Position,
     },
     PlayerMoved {
+        id: u64,
         target_position: TargetPosition,
     },
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct ClientInput {
+    pub left: bool,
+    pub up: bool,
+    pub right: bool,
+    pub down: bool,
+}
+
+impl ClientInput {
+    pub fn to_direction(&self) -> (f32, f32) {
+        (
+            (self.right as i8 - self.left as i8) as f32,
+            (self.down as i8 - self.up as i8) as f32,
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub enum ClientMessage {
-    PlayerMove {
-        left: bool,
-        up: bool,
-        right: bool,
-        down: bool,
-    },
+    PlayerMove { input: ClientInput },
 }

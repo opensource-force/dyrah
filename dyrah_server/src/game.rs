@@ -62,27 +62,20 @@ impl Game {
                             .send_reliable_to(&addr, &serialize(&msg).unwrap(), false);
                     });
 
+                    // sync existing players with new clients
+                    self.world.query::<(&Player, &Position)>(|_, (_, pos)| {
+                        let msg = ServerMessage::PlayerConnected {
+                            position: Position { x: pos.x, y: pos.y },
+                        };
+                        self.server
+                            .send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
+                    });
+
                     let player_pos = Position {
                         x: self.map.width as f32 / 2.,
                         y: self.map.height as f32 / 2.,
                     };
                     let player = self.world.spawn((Player, player_pos));
-
-                    // sync existing players with new clients
-                    self.world
-                        .query::<(&Player, &Position)>(|entity, (_, pos)| {
-                            if entity != player {
-                                let msg = ServerMessage::PlayerConnected {
-                                    position: Position { x: pos.x, y: pos.y },
-                                };
-                                self.server.send_reliable_to(
-                                    &addr,
-                                    &serialize(&msg).unwrap(),
-                                    true,
-                                );
-                            }
-                        });
-
                     let msg = ServerMessage::PlayerConnected {
                         position: player_pos,
                     };
@@ -108,18 +101,14 @@ impl Game {
             let player = self.lobby.get(&addr).unwrap();
 
             match client_msg {
-                ClientMessage::PlayerMove {
-                    left,
-                    up,
-                    right,
-                    down,
-                } => {
+                ClientMessage::PlayerMove { input } => {
                     if let Some(mut pos) = self.world.get_mut::<Position>(*player) {
-                        let target_pos_x = pos.x + (right as i8 - left as i8) as f32 * TILE_SIZE;
-                        let target_pos_y = pos.y + (down as i8 - up as i8) as f32 * TILE_SIZE;
+                        let (mut dx, mut dy) = input.to_direction();
+                        (dx, dy) = (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE);
 
-                        if let Some((x, y)) = self.map.get_tile_center(target_pos_x, target_pos_y) {
+                        if let Some((x, y)) = self.map.get_tile_center(dx, dy) {
                             let msg = ServerMessage::PlayerMoved {
+                                id: player.id(),
                                 target_position: TargetPosition { x, y },
                             };
 
@@ -143,10 +132,11 @@ impl Game {
             .query::<(&mut Creature, &mut Position)>(|entity, (crea, pos)| {
                 let now = Instant::now();
 
-                if now.duration_since(crea.last_move) >= Duration::from_secs(2) {
+                if now.duration_since(crea.last_move) >= Duration::from_secs(3) {
                     crea.last_move = now;
-                    let dx = rng().random_range(-1..=1) as f32 * TILE_SIZE;
-                    let dy = rng().random_range(-1..=1) as f32 * TILE_SIZE;
+                    let mut rng = rng();
+                    let dx = rng.random_range(-1..=1) as f32 * TILE_SIZE;
+                    let dy = rng.random_range(-1..=1) as f32 * TILE_SIZE;
 
                     if dx != 0. || dy != 0. {
                         let (target_pos_x, target_pos_y) = (pos.x + dx, pos.y + dy);

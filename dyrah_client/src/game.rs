@@ -9,7 +9,8 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientMessage, Creature, Player, Position, ServerMessage, TargetPosition, map::TILE_SIZE,
+    ClientInput, ClientMessage, Creature, Player, Position, ServerMessage, TargetPosition,
+    map::TILE_SIZE,
 };
 
 use crate::{
@@ -63,6 +64,7 @@ fn render_system(world: &World) {
             );
 
             draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., YELLOW);
+            draw_circle_lines(target_pos.x, target_pos.y, 2., 2., GREEN);
             draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
         },
     );
@@ -168,10 +170,11 @@ impl Game {
                         self.player = Some(player);
                     }
                 }
-                ServerMessage::PlayerMoved { target_position } => {
-                    if let Some(mut target_pos) =
-                        self.world.get_mut::<TargetPosition>(self.player.unwrap())
-                    {
+                ServerMessage::PlayerMoved {
+                    id,
+                    target_position,
+                } => {
+                    if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
                         *target_pos = target_position;
                     }
                 }
@@ -193,18 +196,20 @@ impl Game {
 
         if left || up || down || right {
             let msg = ClientMessage::PlayerMove {
-                left,
-                up,
-                right,
-                down,
+                input: ClientInput {
+                    left,
+                    up,
+                    right,
+                    down,
+                },
             };
             self.client.send(&serialize(&msg).unwrap());
         }
 
         self.world
             .query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.x = pos.x.lerp(target_pos.x, 10. * self.frame_time);
-                pos.y = pos.y.lerp(target_pos.y, 10. * self.frame_time);
+                pos.x = pos.x.lerp(target_pos.x, 5. * self.frame_time);
+                pos.y = pos.y.lerp(target_pos.y, 5. * self.frame_time);
 
                 self.camera
                     .attach_sized(pos.x, pos.y, screen_width(), screen_height());
@@ -213,8 +218,8 @@ impl Game {
 
         self.world
             .query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.x = pos.x.lerp(target_pos.x, 10. * self.frame_time);
-                pos.y = pos.y.lerp(target_pos.y, 10. * self.frame_time);
+                pos.x = pos.x.lerp(target_pos.x, 2.5 * self.frame_time);
+                pos.y = pos.y.lerp(target_pos.y, 2.5 * self.frame_time);
             });
     }
 
