@@ -59,11 +59,17 @@ impl Game {
         while let Some(event) = self.server.recv_event() {
             match event {
                 ServerEvent::ClientConnected(addr) => {
+                    let mut crea_spawns = Vec::new();
+
                     self.world.query::<(&Creature, &Position)>(|_, (_, pos)| {
-                        let msg = ServerMessage::CreatureSpawned { position: *pos };
+                        crea_spawns.push(*pos);
+                    });
+
+                    if !crea_spawns.is_empty() {
+                        let msg = ServerMessage::CreatureBatchSpawned(crea_spawns);
                         self.server
                             .send_reliable_to(&addr, &serialize(&msg).unwrap(), false);
-                    });
+                    }
 
                     // sync existing players with new clients
                     self.world.query::<(&Player, &Position)>(|_, (_, pos)| {
@@ -207,6 +213,8 @@ impl Game {
                 },
             );
 
+        let mut crea_moves = Vec::new();
+
         for id in crea_updates {
             let target_pos = self.world.get::<TargetPosition>(id.into()).unwrap();
 
@@ -227,10 +235,14 @@ impl Game {
                     pos.y = target_pos.y;
                 }
 
-                let msg = ServerMessage::CreatureMoved { id, position: *pos };
-
-                self.server.broadcast(&serialize(&msg).unwrap());
+                //let msg = ServerMessage::CreatureMoved { id, position: *pos };
+                crea_moves.push((id, *pos));
             }
+        }
+
+        if !crea_moves.is_empty() {
+            let batch_msg = ServerMessage::CreatureBatchMoved(crea_moves);
+            self.server.broadcast(&serialize(&batch_msg).unwrap());
         }
     }
 

@@ -25,8 +25,8 @@ pub struct TargetPosition {
 
 #[derive(Serialize, Deserialize)]
 pub enum ServerMessage {
-    CreatureSpawned { position: Position },
-    CreatureMoved { id: u64, position: Position },
+    CreatureBatchSpawned(Vec<Position>),
+    CreatureBatchMoved(Vec<(u64, Position)>),
     PlayerConnected { position: Position },
     PlayerMoved { id: u64, position: Position },
 }

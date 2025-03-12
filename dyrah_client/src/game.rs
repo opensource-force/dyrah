@@ -129,30 +129,30 @@ impl Game {
     fn handle_server_messages(&mut self) {
         while let Some(server_msg) = self.server_messages.pop_front() {
             match server_msg {
-                ServerMessage::CreatureSpawned { position } => {
-                    self.world.spawn((
-                        Creature {
-                            last_move: Instant::now(),
-                        },
-                        CreatureSprite {
-                            frame: (
-                                (gen_range(0, 1) * TILE_SIZE as u32) as f32,
-                                (gen_range(0, 7) * TILE_SIZE as u32) as f32,
-                            ),
-                        },
-                        position,
-                        TargetPosition {
-                            x: position.x,
-                            y: position.y,
-                        },
-                    ));
+                ServerMessage::CreatureBatchSpawned(positions) => {
+                    for pos in positions {
+                        self.world.spawn((
+                            Creature {
+                                last_move: Instant::now(),
+                            },
+                            CreatureSprite {
+                                frame: (
+                                    (gen_range(0, 1) * TILE_SIZE as u32) as f32,
+                                    (gen_range(0, 7) * TILE_SIZE as u32) as f32,
+                                ),
+                            },
+                            pos,
+                            TargetPosition { x: pos.x, y: pos.y },
+                        ));
+                    }
                 }
-                ServerMessage::CreatureMoved { id, position } => {
-                    if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        *target_pos = TargetPosition {
-                            x: position.x,
-                            y: position.y,
-                        };
+                ServerMessage::CreatureBatchMoved(crea_moves) => {
+                    for (id, pos) in crea_moves {
+                        if let Some(mut target_pos) =
+                            self.world.get_mut::<TargetPosition>(id.into())
+                        {
+                            *target_pos = TargetPosition { x: pos.x, y: pos.y };
+                        }
                     }
                 }
                 ServerMessage::PlayerConnected { position } => {
