@@ -16,7 +16,7 @@ use wrym::{
     transport::Transport,
 };
 
-use crate::Collider;
+use crate::{Collider, PlayerView};
 
 pub struct Game {
     server: Server<Transport>,
@@ -29,9 +29,11 @@ pub struct Game {
 impl Game {
     pub fn new() -> Self {
         let transport = Transport::new("127.0.0.1:8080");
-        let world = World::default();
+        let mut world = World::default();
         let map = TiledMap::new("assets/map.json");
         let mut rng = rng();
+
+        world.add_resource(PlayerView::default());
 
         for _ in 0..50 {
             let pos_x = rng.random_range(0..map.width) as f32 * TILE_SIZE;
@@ -66,6 +68,7 @@ impl Game {
                     });
 
                     if !crea_spawns.is_empty() {
+                        println!("Spawned {} creatures.", crea_spawns.len());
                         let msg = ServerMessage::CreatureBatchSpawned(crea_spawns);
                         self.server
                             .send_reliable_to(&addr, &serialize(&msg).unwrap(), false);
@@ -95,9 +98,11 @@ impl Game {
                         position: player_pos,
                     };
 
+                    self.lobby.insert(addr, player);
+                    println!("Player {} spawned.", self.lobby.len());
+
                     self.server
                         .broadcast_reliable(&serialize(&msg).unwrap(), true);
-                    self.lobby.insert(addr, player);
                 }
                 ServerEvent::ClientDisconnected(_addr) => {
                     unimplemented!()
@@ -164,7 +169,6 @@ impl Game {
         self.server.poll();
         self.handle_events();
         self.handle_client_messages();
-        let mut crea_updates = Vec::new();
 
         self.world
             .query::<(&mut Player, &mut Position, &TargetPosition)>(
@@ -181,6 +185,10 @@ impl Game {
                             pos.y = target_pos.y;
                             player.moving = false;
 
+                            let mut player_view =
+                                self.world.get_resource_mut::<PlayerView>().unwrap();
+                            player_view.position = *pos;
+
                             let msg = ServerMessage::PlayerMoved {
                                 id: entity.id(),
                                 position: Position {
@@ -193,6 +201,8 @@ impl Game {
                     }
                 },
             );
+
+        let mut crea_updates = Vec::new();
 
         self.world
             .query::<(&mut Creature, &Position, &mut TargetPosition)>(
@@ -207,7 +217,11 @@ impl Game {
                         target_pos.y = pos.y + dy as f32 * TILE_SIZE;
 
                         if !self.is_position_blocked(target_pos.x, target_pos.y) {
-                            crea_updates.push(entity.id());
+                            let player_view = self.world.get_resource::<PlayerView>().unwrap();
+
+                            if player_view.contains(target_pos.x, target_pos.y) {
+                                crea_updates.push(entity.id());
+                            }
                         }
                     }
                 },
@@ -234,13 +248,13 @@ impl Game {
                     pos.x = target_pos.x;
                     pos.y = target_pos.y;
                 }
-
-                //let msg = ServerMessage::CreatureMoved { id, position: *pos };
                 crea_moves.push((id, *pos));
             }
         }
 
         if !crea_moves.is_empty() {
+            println!("Moving {} creatures..", crea_moves.len());
+
             let batch_msg = ServerMessage::CreatureBatchMoved(crea_moves);
             self.server.broadcast(&serialize(&batch_msg).unwrap());
         }

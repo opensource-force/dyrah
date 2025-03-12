@@ -11,7 +11,7 @@ pub struct Creature {
     pub last_move: Instant,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub struct Position {
     pub x: f32,
     pub y: f32,
