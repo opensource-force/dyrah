@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 
 pub mod map;
 
-pub struct Player;
+pub struct Player {
+    pub moving: bool,
+}
 pub struct Creature {
     pub last_move: Instant,
 }
@@ -23,20 +25,10 @@ pub struct TargetPosition {
 
 #[derive(Serialize, Deserialize)]
 pub enum ServerMessage {
-    CreatureSpawned {
-        position: Position,
-    },
-    CreatureMoved {
-        id: u64,
-        target_position: TargetPosition,
-    },
-    PlayerConnected {
-        position: Position,
-    },
-    PlayerMoved {
-        id: u64,
-        target_position: TargetPosition,
-    },
+    CreatureSpawned { position: Position },
+    CreatureMoved { id: u64, position: Position },
+    PlayerConnected { position: Position },
+    PlayerMoved { id: u64, position: Position },
 }
 
 #[derive(Serialize, Deserialize)]

@@ -67,9 +67,7 @@ impl Game {
 
                     // sync existing players with new clients
                     self.world.query::<(&Player, &Position)>(|_, (_, pos)| {
-                        let msg = ServerMessage::PlayerConnected {
-                            position: Position { x: pos.x, y: pos.y },
-                        };
+                        let msg = ServerMessage::PlayerConnected { position: *pos };
                         self.server
                             .send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
                     });
@@ -79,7 +77,7 @@ impl Game {
                         y: self.map.height as f32 / 2.,
                     };
                     let player = self.world.spawn((
-                        Player,
+                        Player { moving: false },
                         Collider,
                         player_pos,
                         TargetPosition {
@@ -113,32 +111,25 @@ impl Game {
 
             match client_msg {
                 ClientMessage::PlayerMove { input } => {
-                    let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
-                    let pos = self.world.get::<Position>(*player).unwrap();
+                    let mut player_state = self.world.get_mut::<Player>(*player).unwrap();
+
+                    if player_state.moving {
+                        return;
+                    }
+
                     let (dx, dy) = input.to_direction();
-                    (target_pos.x, target_pos.y) = (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE);
-                    let is_position_blocked = self.is_position_blocked(target_pos.x, target_pos.y);
+                    let pos = self.world.get::<Position>(*player).unwrap();
+                    let (tgt_x, tgt_y) = (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE);
 
-                    drop(pos);
+                    if self.is_position_blocked(tgt_x, tgt_y) {
+                        return;
+                    }
 
-                    if self.map.is_walkable("props", target_pos.x, target_pos.y) {
-                        if !is_position_blocked {
-                            let mut pos = self.world.get_mut::<Position>(*player).unwrap();
+                    if let Some((x, y)) = self.map.get_tile_center("floor", tgt_x, tgt_y) {
+                        let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
 
-                            if let Some((x, y)) =
-                                self.map
-                                    .get_tile_center("floor", target_pos.x, target_pos.y)
-                            {
-                                pos.x = x;
-                                pos.y = y;
-
-                                let msg = ServerMessage::PlayerMoved {
-                                    id: player.id(),
-                                    target_position: TargetPosition { x, y },
-                                };
-                                self.server.broadcast(&serialize(&msg).unwrap())
-                            }
-                        }
+                        player_state.moving = true;
+                        (target_pos.x, target_pos.y) = (x, y);
                     }
                 }
             }
@@ -148,9 +139,15 @@ impl Game {
     fn is_position_blocked(&self, x: f32, y: f32) -> bool {
         let mut blocked = false;
 
+        if !self.map.is_walkable("props", x, y) {
+            blocked = true;
+            return blocked;
+        }
+
         self.world.query::<(&Collider, &Position)>(|_, (_, pos)| {
             if (pos.x - x).abs() < TILE_SIZE && (pos.y - y).abs() < TILE_SIZE {
                 blocked = true;
+                return;
             }
         });
 
@@ -164,47 +161,76 @@ impl Game {
         let mut crea_updates = Vec::new();
 
         self.world
+            .query::<(&mut Player, &mut Position, &TargetPosition)>(
+                |entity, (player, pos, target_pos)| {
+                    if player.moving {
+                        let speed = TILE_SIZE / 10.;
+                        pos.x += (target_pos.x - pos.x).clamp(-speed, speed);
+                        pos.y += (target_pos.y - pos.y).clamp(-speed, speed);
+
+                        if (pos.x - target_pos.x).abs() < TILE_SIZE
+                            && (pos.y - target_pos.y).abs() < TILE_SIZE
+                        {
+                            pos.x = target_pos.x;
+                            pos.y = target_pos.y;
+                            player.moving = false;
+
+                            let msg = ServerMessage::PlayerMoved {
+                                id: entity.id(),
+                                position: Position {
+                                    x: target_pos.x,
+                                    y: target_pos.y,
+                                },
+                            };
+                            self.server.broadcast(&serialize(&msg).unwrap())
+                        }
+                    }
+                },
+            );
+
+        self.world
             .query::<(&mut Creature, &Position, &mut TargetPosition)>(
                 |entity, (crea, pos, target_pos)| {
                     let now = Instant::now();
-
                     if now.duration_since(crea.last_move) >= Duration::from_secs(3) {
                         crea.last_move = now;
+
                         let mut rng = rng();
                         let (dx, dy) = (rng.random_range(-1..=1), rng.random_range(-1..=1));
                         target_pos.x = pos.x + dx as f32 * TILE_SIZE;
                         target_pos.y = pos.y + dy as f32 * TILE_SIZE;
 
-                        if self.map.is_walkable("props", target_pos.x, target_pos.y) {
-                            if !self.is_position_blocked(target_pos.x, target_pos.y) {
-                                crea_updates.push(entity.id());
-                            }
+                        if !self.is_position_blocked(target_pos.x, target_pos.y) {
+                            crea_updates.push(entity.id());
                         }
                     }
                 },
             );
 
         for id in crea_updates {
-            self.world.query::<(&mut Position, &mut TargetPosition)>(
-                |entity, (pos, target_pos)| {
-                    if entity.id() == id {
-                        if let Some((x, y)) =
-                            self.map
-                                .get_tile_center("floor", target_pos.x, target_pos.y)
-                        {
-                            pos.x = x;
-                            pos.y = y;
+            let target_pos = self.world.get::<TargetPosition>(id.into()).unwrap();
 
-                            let msg = ServerMessage::CreatureMoved {
-                                id,
-                                target_position: TargetPosition { x, y },
-                            };
+            if let Some((x, y)) = self
+                .map
+                .get_tile_center("floor", target_pos.x, target_pos.y)
+            {
+                let mut pos = self.world.get_mut::<Position>(id.into()).unwrap();
+                let speed = TILE_SIZE / 5.;
 
-                            self.server.broadcast(&serialize(&msg).unwrap());
-                        }
-                    }
-                },
-            );
+                pos.x += (x - pos.x).clamp(-speed, speed);
+                pos.y += (y - pos.y).clamp(-speed, speed);
+
+                if (pos.x - target_pos.x).abs() < TILE_SIZE
+                    && (pos.y - target_pos.y).abs() < TILE_SIZE
+                {
+                    pos.x = target_pos.x;
+                    pos.y = target_pos.y;
+                }
+
+                let msg = ServerMessage::CreatureMoved { id, position: *pos };
+
+                self.server.broadcast(&serialize(&msg).unwrap());
+            }
         }
     }
 

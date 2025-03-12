@@ -147,17 +147,17 @@ impl Game {
                         },
                     ));
                 }
-                ServerMessage::CreatureMoved {
-                    id,
-                    target_position,
-                } => {
+                ServerMessage::CreatureMoved { id, position } => {
                     if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        *target_pos = target_position;
+                        *target_pos = TargetPosition {
+                            x: position.x,
+                            y: position.y,
+                        };
                     }
                 }
                 ServerMessage::PlayerConnected { position } => {
                     let player = self.world.spawn((
-                        Player,
+                        Player { moving: false },
                         PlayerSprite { frame: (0., 0.) },
                         position,
                         TargetPosition {
@@ -170,12 +170,21 @@ impl Game {
                         self.player = Some(player);
                     }
                 }
-                ServerMessage::PlayerMoved {
-                    id,
-                    target_position,
-                } => {
+                ServerMessage::PlayerMoved { id, position } => {
                     if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        *target_pos = target_position;
+                        *target_pos = TargetPosition {
+                            x: position.x,
+                            y: position.y,
+                        };
+
+                        // need to keep target_position attached to player position (fixes crazy camera)
+                        self.camera.attach_sized(
+                            target_pos.x,
+                            target_pos.y,
+                            screen_width(),
+                            screen_height(),
+                        );
+                        self.camera.set();
                     }
                 }
             }
@@ -210,16 +219,12 @@ impl Game {
             .query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
                 pos.x = pos.x.lerp(target_pos.x, 5. * self.frame_time);
                 pos.y = pos.y.lerp(target_pos.y, 5. * self.frame_time);
-
-                self.camera
-                    .attach_sized(pos.x, pos.y, screen_width(), screen_height());
-                self.camera.set();
             });
 
         self.world
             .query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.x = pos.x.lerp(target_pos.x, 2.5 * self.frame_time);
-                pos.y = pos.y.lerp(target_pos.y, 2.5 * self.frame_time);
+                pos.x = pos.x.lerp(target_pos.x, 3. * self.frame_time);
+                pos.y = pos.y.lerp(target_pos.y, 3. * self.frame_time);
             });
     }
 
