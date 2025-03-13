@@ -35,7 +35,7 @@ impl Game {
 
         world.add_resource(PlayerView::default());
 
-        for _ in 0..50 {
+        for _ in 0..200 {
             let pos_x = rng.random_range(0..map.width) as f32 * TILE_SIZE;
             let pos_y = rng.random_range(0..map.height) as f32 * TILE_SIZE;
             world.spawn((
@@ -104,8 +104,8 @@ impl Game {
                     self.server
                         .broadcast_reliable(&serialize(&msg).unwrap(), true);
                 }
-                ServerEvent::ClientDisconnected(_addr) => {
-                    unimplemented!()
+                ServerEvent::ClientDisconnected(addr) => {
+                    println!("Client {} disconnected.", addr);
                 }
                 ServerEvent::MessageReceived(addr, bytes) => {
                     let client_msg = deserialize::<ClientMessage>(&bytes).unwrap();
@@ -128,9 +128,13 @@ impl Game {
                         return;
                     }
 
-                    let (dx, dy) = input.to_direction();
                     let pos = self.world.get::<Position>(*player).unwrap();
-                    let (tgt_x, tgt_y) = (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE);
+                    let (tgt_x, tgt_y) = if let Some(pos) = input.mouse_target_pos {
+                        (pos.x, pos.y)
+                    } else {
+                        let (dx, dy) = input.to_direction();
+                        (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE)
+                    };
 
                     if self.is_position_blocked(tgt_x, tgt_y) {
                         return;
@@ -203,12 +207,14 @@ impl Game {
             );
 
         let mut crea_updates = Vec::new();
+        let now = Instant::now();
 
         self.world
             .query::<(&mut Creature, &Position, &mut TargetPosition)>(
                 |entity, (crea, pos, target_pos)| {
-                    let now = Instant::now();
-                    if now.duration_since(crea.last_move) >= Duration::from_secs(3) {
+                    if now.duration_since(crea.last_move)
+                        >= Duration::from_secs_f32(rng().random_range(2.0..4.))
+                    {
                         crea.last_move = now;
 
                         let mut rng = rng();
@@ -253,8 +259,6 @@ impl Game {
         }
 
         if !crea_moves.is_empty() {
-            println!("Moving {} creatures..", crea_moves.len());
-
             let batch_msg = ServerMessage::CreatureBatchMoved(crea_moves);
             self.server.broadcast(&serialize(&batch_msg).unwrap());
         }

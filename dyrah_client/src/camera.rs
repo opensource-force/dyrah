@@ -5,7 +5,7 @@ use macroquad::{
 };
 
 pub struct Camera {
-    inner: Camera2D,
+    pub inner: Camera2D,
     width: f32,
     height: f32,
 }

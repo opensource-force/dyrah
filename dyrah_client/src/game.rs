@@ -10,7 +10,7 @@ use wrym::{
 
 use dyrah_shared::{
     ClientInput, ClientMessage, Creature, Player, Position, ServerMessage, TargetPosition,
-    map::TILE_SIZE,
+    map::{TILE_OFFSET, TILE_SIZE},
 };
 
 use crate::{
@@ -20,6 +20,9 @@ use crate::{
 fn render_system(world: &World) {
     world.query::<(&Creature, &CreatureSprite, &Position, &TargetPosition)>(
         |_, (_, creature_spr, pos, target_pos)| {
+            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., YELLOW);
+            draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., RED);
+
             let creature_tex = world.get_resource::<CreatureTexture>().unwrap();
 
             draw_texture_ex(
@@ -37,14 +40,21 @@ fn render_system(world: &World) {
                     ..Default::default()
                 },
             );
-
-            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., YELLOW);
-            draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., RED);
         },
     );
 
     world.query::<(&Player, &PlayerSprite, &Position, &TargetPosition)>(
         |_, (_, player_spr, pos, target_pos)| {
+            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., YELLOW);
+            draw_circle_lines(
+                target_pos.x + TILE_OFFSET,
+                target_pos.y + TILE_OFFSET,
+                1.,
+                2.,
+                GREEN,
+            );
+            draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
+
             let player_tex = world.get_resource::<PlayerTexture>().unwrap();
 
             draw_texture_ex(
@@ -62,10 +72,6 @@ fn render_system(world: &World) {
                     ..Default::default()
                 },
             );
-
-            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., YELLOW);
-            draw_circle_lines(target_pos.x, target_pos.y, 2., 2., GREEN);
-            draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
         },
     );
 }
@@ -202,14 +208,24 @@ impl Game {
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
+        let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
+        let mut mouse_target_pos = None;
 
-        if left || up || down || right {
+        if is_mouse_button_released(MouseButton::Left) {
+            mouse_target_pos = Some(Position {
+                x: mouse_world_pos.x,
+                y: mouse_world_pos.y,
+            })
+        }
+
+        if left || up || down || right || mouse_target_pos.is_some() {
             let msg = ClientMessage::PlayerMove {
                 input: ClientInput {
                     left,
                     up,
                     right,
                     down,
+                    mouse_target_pos,
                 },
             };
             self.client.send(&serialize(&msg).unwrap());
@@ -235,6 +251,17 @@ impl Game {
             self.update();
             self.map.draw_tiles(&self.map_texture);
             self.world.run_systems();
+
+            let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
+
+            draw_rectangle_lines(
+                mouse_world_pos.x - TILE_OFFSET,
+                mouse_world_pos.y - TILE_OFFSET,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.,
+                PURPLE,
+            );
 
             next_frame().await;
         }
