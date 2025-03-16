@@ -1,8 +1,13 @@
+use std::time::Instant;
+
 use dyrah_shared::{Position, map::TILE_SIZE};
 
 pub mod game;
 
 pub struct Collider;
+pub struct Creature {
+    pub last_move: Instant,
+}
 
 pub struct PlayerView {
     position: Position,

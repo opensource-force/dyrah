@@ -3,5 +3,5 @@ use dyrah_server::game::Game;
 fn main() {
     let mut game = Game::new();
 
-    game.run(30);
+    game.run(20);
 }

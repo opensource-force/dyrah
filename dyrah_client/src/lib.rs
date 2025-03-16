@@ -1,16 +1,22 @@
+use dyrah_shared::map::TILE_SIZE;
 use macroquad::texture::Texture2D;
 
 mod camera;
 pub mod game;
 mod map;
 
+pub struct Creature;
 pub struct PlayerTexture(Texture2D);
 pub struct CreatureTexture(Texture2D);
 
-pub struct PlayerSprite {
+pub struct Sprite {
     frame: (f32, f32),
 }
 
-pub struct CreatureSprite {
-    frame: (f32, f32),
+impl Sprite {
+    fn from_frame(x: f32, y: f32) -> Self {
+        Self {
+            frame: (x * TILE_SIZE, y * TILE_SIZE),
+        }
+    }
 }

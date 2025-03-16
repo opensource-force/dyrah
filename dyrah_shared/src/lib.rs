@@ -1,15 +1,8 @@
-use std::time::Instant;
-
 use serde::{Deserialize, Serialize};
 
 pub mod map;
 
-pub struct Player {
-    pub moving: bool,
-}
-pub struct Creature {
-    pub last_move: Instant,
-}
+pub struct Player;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub struct Position {

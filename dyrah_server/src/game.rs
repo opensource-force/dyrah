@@ -1,26 +1,25 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     thread,
     time::{Duration, Instant},
 };
 
 use bincode::{deserialize, serialize};
 use dyrah_shared::{
-    ClientMessage, Creature, Player, Position, ServerMessage, TargetPosition,
+    ClientMessage, Player, Position, ServerMessage, TargetPosition,
     map::{TILE_SIZE, TiledMap},
 };
-use rand::{Rng, rng};
+use rand::{Rng, random_range, rng};
 use secs::{Entity, World};
 use wrym::{
     server::{Server, ServerConfig, ServerEvent},
     transport::Transport,
 };
 
-use crate::{Collider, PlayerView};
+use crate::{Collider, Creature, PlayerView};
 
 pub struct Game {
     server: Server<Transport>,
-    client_messages: VecDeque<(String, ClientMessage)>,
     lobby: HashMap<String, Entity>,
     world: World,
     map: TiledMap,
@@ -50,7 +49,6 @@ impl Game {
 
         Self {
             server: Server::new(transport, ServerConfig::default()),
-            client_messages: VecDeque::new(),
             lobby: HashMap::new(),
             world,
             map,
@@ -85,8 +83,9 @@ impl Game {
                         x: self.map.width as f32 / 2.,
                         y: self.map.height as f32 / 2.,
                     };
+
                     let player = self.world.spawn((
-                        Player { moving: false },
+                        Player,
                         Collider,
                         player_pos,
                         TargetPosition {
@@ -108,44 +107,34 @@ impl Game {
                     println!("Client {} disconnected.", addr);
                 }
                 ServerEvent::MessageReceived(addr, bytes) => {
-                    let client_msg = deserialize::<ClientMessage>(&bytes).unwrap();
+                    let msg = deserialize::<ClientMessage>(&bytes).unwrap();
 
-                    self.client_messages.push_back((addr, client_msg));
+                    self.handle_client_messages(&addr, msg);
                 }
             }
         }
     }
 
-    fn handle_client_messages(&mut self) {
-        while let Some((addr, client_msg)) = self.client_messages.pop_front() {
-            let player = self.lobby.get(&addr).unwrap();
+    fn handle_client_messages(&mut self, addr: &str, msg: ClientMessage) {
+        match msg {
+            ClientMessage::PlayerMove { input } => {
+                let player = self.lobby.get(addr).unwrap();
+                let pos = self.world.get::<Position>(*player).unwrap();
+                let (tgt_x, tgt_y) = if let Some(pos) = input.mouse_target_pos {
+                    (pos.x, pos.y)
+                } else {
+                    let (dx, dy) = input.to_direction();
+                    (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE)
+                };
 
-            match client_msg {
-                ClientMessage::PlayerMove { input } => {
-                    let mut player_state = self.world.get_mut::<Player>(*player).unwrap();
+                if self.is_position_blocked(tgt_x, tgt_y) {
+                    return;
+                }
 
-                    if player_state.moving {
-                        return;
-                    }
+                if let Some((x, y)) = self.map.get_tile_center("floor", tgt_x, tgt_y) {
+                    let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
 
-                    let pos = self.world.get::<Position>(*player).unwrap();
-                    let (tgt_x, tgt_y) = if let Some(pos) = input.mouse_target_pos {
-                        (pos.x, pos.y)
-                    } else {
-                        let (dx, dy) = input.to_direction();
-                        (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE)
-                    };
-
-                    if self.is_position_blocked(tgt_x, tgt_y) {
-                        return;
-                    }
-
-                    if let Some((x, y)) = self.map.get_tile_center("floor", tgt_x, tgt_y) {
-                        let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
-
-                        player_state.moving = true;
-                        (target_pos.x, target_pos.y) = (x, y);
-                    }
+                    (target_pos.x, target_pos.y) = (x, y);
                 }
             }
         }
@@ -172,62 +161,58 @@ impl Game {
     fn update(&mut self) {
         self.server.poll();
         self.handle_events();
-        self.handle_client_messages();
 
         self.world
             .query::<(&mut Player, &mut Position, &TargetPosition)>(
-                |entity, (player, pos, target_pos)| {
-                    if player.moving {
-                        let speed = TILE_SIZE / 10.;
-                        pos.x += (target_pos.x - pos.x).clamp(-speed, speed);
-                        pos.y += (target_pos.y - pos.y).clamp(-speed, speed);
+                |entity, (_, pos, target_pos)| {
+                    let speed = TILE_SIZE / 10.;
+                    pos.x += (target_pos.x - pos.x).clamp(-speed, speed);
+                    pos.y += (target_pos.y - pos.y).clamp(-speed, speed);
 
-                        if (pos.x - target_pos.x).abs() < TILE_SIZE
-                            && (pos.y - target_pos.y).abs() < TILE_SIZE
-                        {
-                            pos.x = target_pos.x;
-                            pos.y = target_pos.y;
-                            player.moving = false;
+                    if (pos.x - target_pos.x).abs() < TILE_SIZE
+                        && (pos.y - target_pos.y).abs() < TILE_SIZE
+                    {
+                        pos.x = target_pos.x;
+                        pos.y = target_pos.y;
 
-                            let mut player_view =
-                                self.world.get_resource_mut::<PlayerView>().unwrap();
-                            player_view.position = *pos;
+                        let mut player_view = self.world.get_resource_mut::<PlayerView>().unwrap();
+                        player_view.position = *pos;
 
-                            let msg = ServerMessage::PlayerMoved {
-                                id: entity.id(),
-                                position: Position {
-                                    x: target_pos.x,
-                                    y: target_pos.y,
-                                },
-                            };
-                            self.server.broadcast(&serialize(&msg).unwrap())
-                        }
+                        let msg = ServerMessage::PlayerMoved {
+                            id: entity.id(),
+                            position: Position {
+                                x: target_pos.x,
+                                y: target_pos.y,
+                            },
+                        };
+                        self.server.broadcast(&serialize(&msg).unwrap())
                     }
                 },
             );
 
         let mut crea_updates = Vec::new();
-        let now = Instant::now();
 
         self.world
             .query::<(&mut Creature, &Position, &mut TargetPosition)>(
-                |entity, (crea, pos, target_pos)| {
-                    if now.duration_since(crea.last_move)
-                        >= Duration::from_secs_f32(rng().random_range(2.0..4.))
+                |entity, (crea_state, pos, target_pos)| {
+                    if Instant::now() - crea_state.last_move
+                        < Duration::from_secs(random_range(2..=4))
                     {
-                        crea.last_move = now;
+                        return;
+                    }
 
-                        let mut rng = rng();
-                        let (dx, dy) = (rng.random_range(-1..=1), rng.random_range(-1..=1));
-                        target_pos.x = pos.x + dx as f32 * TILE_SIZE;
-                        target_pos.y = pos.y + dy as f32 * TILE_SIZE;
+                    crea_state.last_move = Instant::now();
 
-                        if !self.is_position_blocked(target_pos.x, target_pos.y) {
-                            let player_view = self.world.get_resource::<PlayerView>().unwrap();
+                    let mut rng = rng();
+                    let (dx, dy) = (rng.random_range(-1..=1), rng.random_range(-1..=1));
+                    target_pos.x = pos.x + dx as f32 * TILE_SIZE;
+                    target_pos.y = pos.y + dy as f32 * TILE_SIZE;
 
-                            if player_view.contains(target_pos.x, target_pos.y) {
-                                crea_updates.push(entity.id());
-                            }
+                    if !self.is_position_blocked(target_pos.x, target_pos.y) {
+                        let player_view = self.world.get_resource::<PlayerView>().unwrap();
+
+                        if player_view.contains(target_pos.x, target_pos.y) {
+                            crea_updates.push(entity.id());
                         }
                     }
                 },
