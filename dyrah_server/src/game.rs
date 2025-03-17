@@ -131,7 +131,7 @@ impl Game {
                     return;
                 }
 
-                if let Some((x, y)) = self.map.get_tile_center("floor", tgt_x, tgt_y) {
+                if let Some((x, y)) = self.map.get_tile_center("base", tgt_x, tgt_y) {
                     let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
 
                     (target_pos.x, target_pos.y) = (x, y);
@@ -143,7 +143,7 @@ impl Game {
     fn is_position_blocked(&self, x: f32, y: f32) -> bool {
         let mut blocked = false;
 
-        if !self.map.is_walkable("props", x, y) {
+        if !self.map.is_walkable("colliders", x, y) {
             blocked = true;
             return blocked;
         }
@@ -223,10 +223,7 @@ impl Game {
         for id in crea_updates {
             let target_pos = self.world.get::<TargetPosition>(id.into()).unwrap();
 
-            if let Some((x, y)) = self
-                .map
-                .get_tile_center("floor", target_pos.x, target_pos.y)
-            {
+            if let Some((x, y)) = self.map.get_tile_center("base", target_pos.x, target_pos.y) {
                 let mut pos = self.world.get_mut::<Position>(id.into()).unwrap();
                 let speed = TILE_SIZE / 5.;
 

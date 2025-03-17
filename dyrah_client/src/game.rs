@@ -7,8 +7,7 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientInput, ClientMessage, Player, Position, ServerMessage, TargetPosition,
-    map::{TILE_OFFSET, TILE_SIZE},
+    ClientInput, ClientMessage, Player, Position, ServerMessage, TargetPosition, map::TILE_SIZE,
 };
 
 use crate::{Creature, CreatureTexture, PlayerTexture, Sprite, camera::Camera, map::TiledMap};
@@ -34,13 +33,7 @@ fn render_system(world: &World) {
     world.query::<(&Player, &Sprite, &Position, &TargetPosition)>(
         |_, (_, spr, pos, target_pos)| {
             draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
-            draw_circle_lines(
-                target_pos.x + TILE_OFFSET,
-                target_pos.y + TILE_OFFSET,
-                1.,
-                2.,
-                YELLOW,
-            );
+            draw_circle_lines(target_pos.x, target_pos.y, 1., 2., YELLOW);
             draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., GREEN);
 
             let player_tex = world.get_resource::<PlayerTexture>().unwrap();
@@ -227,8 +220,8 @@ impl Game {
             let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
 
             draw_rectangle_lines(
-                mouse_world_pos.x - TILE_OFFSET,
-                mouse_world_pos.y - TILE_OFFSET,
+                mouse_world_pos.x,
+                mouse_world_pos.y,
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,

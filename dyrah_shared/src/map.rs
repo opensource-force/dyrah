@@ -42,13 +42,13 @@ impl TiledMap {
         true
     }
 
-    fn world_to_tile(&self, x: f32, y: f32) -> Option<(usize, usize)> {
+    fn world_to_tile(&self, x: f32, y: f32) -> Option<(f32, f32)> {
         if !self.within_bounds(x, y) {
             return None;
         }
 
-        let tile_x = (x / self.tilewidth as f32).floor() as usize;
-        let tile_y = (y / self.tileheight as f32).floor() as usize;
+        let tile_x = x / self.tilewidth as f32;
+        let tile_y = y / self.tileheight as f32;
 
         Some((tile_x, tile_y))
     }
@@ -61,21 +61,22 @@ impl TiledMap {
         let layer = self.get_layer(layer_name).unwrap();
 
         if let Some((tile_x, tile_y)) = self.world_to_tile(x, y) {
-            let index = tile_y * layer.width as usize + tile_x;
+            let index = (tile_y * layer.width as f32 + tile_x) as usize;
+
             return layer.data.get(index).map_or(false, |&tile| tile == 0);
         }
 
         false
     }
 
-    pub fn get_walkable_tile(&self, layer_name: &str, x: f32, y: f32) -> Option<(usize, usize)> {
+    pub fn get_tile(&self, layer_name: &str, x: f32, y: f32) -> Option<(f32, f32)> {
         let layer = self.get_layer(layer_name)?;
 
         if let Some((tile_x, tile_y)) = self.world_to_tile(x, y) {
-            let index = tile_y * layer.width as usize + tile_x;
+            let index = (tile_y * layer.width as f32 + tile_x) as usize;
 
-            if layer.data.get(index).map_or(false, |&tile| tile == 0) {
-                return Some((tile_x, tile_y));
+            if layer.data.get(index).map_or(false, |&tile| tile != 0) {
+                return Some((tile_x as f32, tile_y as f32));
             }
         }
 
@@ -83,7 +84,7 @@ impl TiledMap {
     }
 
     pub fn get_tile_center(&self, layer_name: &str, x: f32, y: f32) -> Option<(f32, f32)> {
-        if let Some((tile_x, tile_y)) = self.get_walkable_tile(layer_name, x, y) {
+        if let Some((tile_x, tile_y)) = self.get_tile(layer_name, x, y) {
             let center_x = tile_x as u32 * self.tilewidth + (self.tilewidth / 2);
             let center_y = tile_y as u32 * self.tileheight + (self.tileheight / 2);
 
