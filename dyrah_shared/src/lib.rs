@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 
 pub mod map;
 
-pub struct Player;
-
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
 pub struct Position {
     pub x: f32,
@@ -16,11 +14,16 @@ pub struct TargetPosition {
     pub y: f32,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct Health {
+    pub points: f32,
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum ServerMessage {
-    CreatureBatchSpawned(Vec<Position>),
+    CreatureBatchSpawned(Vec<(Position, Health)>),
     CreatureBatchMoved(Vec<(u64, Position)>),
-    PlayerConnected { position: Position },
+    PlayerConnected { position: Position, health: Health },
     PlayerMoved { id: u64, position: Position },
 }
 

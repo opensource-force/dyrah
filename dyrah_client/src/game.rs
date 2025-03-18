@@ -7,17 +7,18 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientInput, ClientMessage, Player, Position, ServerMessage, TargetPosition, map::TILE_SIZE,
+    ClientInput, ClientMessage, Health, Position, ServerMessage, TargetPosition,
+    map::{TILE_OFFSET, TILE_SIZE},
 };
 
-use crate::{Creature, CreatureTexture, PlayerTexture, Sprite, camera::Camera, map::TiledMap};
+use crate::{
+    Creature, CreatureTexture, Player, PlayerTexture, Sprite, camera::Camera, map::TiledMap,
+};
 
 fn render_system(world: &World) {
-    world.query::<(&Creature, &Sprite, &Position)>(|_, (_, spr, pos)| {
-        draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., RED);
+    let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
-        let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
-
+    world.query::<(&Creature, &Sprite, &Position, &Health)>(|_, (_, spr, pos, health)| {
         draw_texture_ex(
             &crea_tex.0,
             pos.x,
@@ -28,15 +29,22 @@ fn render_system(world: &World) {
                 ..Default::default()
             },
         );
+
+        draw_rectangle(pos.x, pos.y, health.points / 100.0 * TILE_SIZE, 4., RED);
     });
 
-    world.query::<(&Player, &Sprite, &Position, &TargetPosition)>(
-        |_, (_, spr, pos, target_pos)| {
-            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
-            draw_circle_lines(target_pos.x, target_pos.y, 1., 2., YELLOW);
-            draw_rectangle_lines(pos.x, pos.y, TILE_SIZE, TILE_SIZE, 2., GREEN);
+    let player_tex = world.get_resource::<PlayerTexture>().unwrap();
 
-            let player_tex = world.get_resource::<PlayerTexture>().unwrap();
+    world.query::<(&Player, &Position, &TargetPosition, &Health)>(
+        |_, (player_state, pos, target_pos, health)| {
+            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
+            draw_circle_lines(
+                target_pos.x + TILE_OFFSET,
+                target_pos.y + TILE_OFFSET,
+                1.,
+                2.,
+                YELLOW,
+            );
 
             draw_texture_ex(
                 &player_tex.0,
@@ -44,10 +52,17 @@ fn render_system(world: &World) {
                 pos.y,
                 WHITE,
                 DrawTextureParams {
-                    source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
+                    source: Some(Rect::new(
+                        player_state.sprite.frame.0,
+                        player_state.sprite.frame.1,
+                        TILE_SIZE,
+                        TILE_SIZE,
+                    )),
                     ..Default::default()
                 },
             );
+
+            draw_rectangle(pos.x, pos.y, health.points / 100. * TILE_SIZE, 4., GREEN);
         },
     );
 }
@@ -93,30 +108,26 @@ impl Game {
     fn handle_events(&mut self) {
         while let Some(event) = self.client.recv_event() {
             match event {
-                ClientEvent::Connected => {
-                    println!("Connected to server!!");
-                }
-                ClientEvent::Disconnected => {
-                    println!("Lost connection to server");
-                }
                 ClientEvent::MessageReceived(bytes) => {
                     let msg = deserialize::<ServerMessage>(&bytes).unwrap();
 
                     self.handle_server_messages(msg);
                 }
+                _ => {}
             }
         }
     }
 
     fn handle_server_messages(&mut self, msg: ServerMessage) {
         match msg {
-            ServerMessage::CreatureBatchSpawned(positions) => {
-                for pos in positions {
+            ServerMessage::CreatureBatchSpawned(creatures) => {
+                for (pos, health) in creatures {
                     self.world.spawn((
                         Creature,
                         Sprite::from_frame(gen_range(0, 1) as f32, gen_range(0, 7) as f32),
                         pos,
                         TargetPosition { x: pos.x, y: pos.y },
+                        health,
                     ));
                 }
             }
@@ -127,15 +138,17 @@ impl Game {
                     }
                 }
             }
-            ServerMessage::PlayerConnected { position } => {
+            ServerMessage::PlayerConnected { position, health } => {
                 let player = self.world.spawn((
-                    Player,
-                    Sprite::from_frame(1., 4.),
+                    Player {
+                        sprite: Sprite::from_frame(1., 4.),
+                    },
                     position,
                     TargetPosition {
                         x: position.x,
                         y: position.y,
                     },
+                    health,
                 ));
 
                 if self.player.is_none() {
@@ -160,12 +173,12 @@ impl Game {
         root_ui().label(None, &format!("FPS: {}", get_fps()));
 
         let current_time = get_time();
+        let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
 
         let left = is_key_down(KeyCode::A) || is_key_down(KeyCode::Left);
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
-        let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
         let mut mouse_target_pos = None;
 
         if is_mouse_button_released(MouseButton::Left) {

@@ -4,6 +4,8 @@ use dyrah_shared::{Position, map::TILE_SIZE};
 
 pub mod game;
 
+pub struct Player;
+
 pub struct Collider;
 pub struct Creature {
     pub last_move: Instant,
