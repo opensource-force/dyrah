@@ -163,6 +163,14 @@ impl Game {
                     };
                 }
             }
+            ServerMessage::CreatureDamaged { id, health } => {
+                if let Some(mut hp) = self.world.get_mut::<Health>(id.into()) {
+                    *hp = health;
+                }
+            }
+            ServerMessage::EntityDied { id } => {
+                self.world.despawn(id.into());
+            }
         }
     }
 
@@ -179,28 +187,42 @@ impl Game {
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
-        let mut mouse_target_pos = None;
-
-        if is_mouse_button_released(MouseButton::Left) {
-            mouse_target_pos = Some(Position {
+        let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
+            Some(Position {
                 x: mouse_world_pos.x,
                 y: mouse_world_pos.y,
             })
-        }
+        } else {
+            None
+        };
+        let mouse_target = if is_mouse_button_released(MouseButton::Right) {
+            let mut target = None;
 
-        if left || up || down || right || mouse_target_pos.is_some() {
+            self.world
+                .query::<(&Creature, &Position)>(|entity, (_, pos)| {
+                    if Rect::new(pos.x, pos.y, TILE_SIZE, TILE_SIZE).contains(mouse_world_pos) {
+                        target = Some(entity.id());
+                    }
+                });
+
+            target
+        } else {
+            None
+        };
+
+        if left || up || down || right || mouse_target_pos.is_some() || mouse_target.is_some() {
             if current_time - self.last_input_time >= 0.2 {
-                let msg = ClientMessage::PlayerMove {
+                let msg = ClientMessage::PlayerUpdate {
                     input: ClientInput {
                         left,
                         up,
                         right,
                         down,
                         mouse_target_pos,
+                        mouse_target,
                     },
                 };
                 self.client.send(&serialize(&msg).unwrap());
-
                 self.last_input_time = current_time;
             }
         }

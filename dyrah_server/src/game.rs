@@ -23,6 +23,7 @@ pub struct Game {
     lobby: HashMap<String, Entity>,
     world: World,
     map: TiledMap,
+    dead_entities: Vec<u64>,
 }
 
 impl Game {
@@ -55,6 +56,7 @@ impl Game {
             lobby: HashMap::new(),
             world,
             map,
+            dead_entities: Vec::new(),
         }
     }
 
@@ -96,7 +98,7 @@ impl Game {
                     let player_health = Health { points: 100. };
 
                     let player = self.world.spawn((
-                        Player,
+                        Player { attacking: None },
                         Collider,
                         player_pos,
                         TargetPosition {
@@ -104,7 +106,7 @@ impl Game {
                             y: player_pos.y,
                         },
                     ));
-                    self.world.attach(player, (Health { points: 100. },));
+                    self.world.attach(player, (player_health,));
 
                     self.lobby.insert(addr, player);
                     println!("Player {} spawned.", self.lobby.len());
@@ -148,21 +150,26 @@ impl Game {
 
     fn handle_client_messages(&mut self, addr: &str, msg: ClientMessage) {
         match msg {
-            ClientMessage::PlayerMove { input } => {
+            ClientMessage::PlayerUpdate { input } => {
                 let player = self.lobby.get(addr).unwrap();
                 let pos = self.world.get::<Position>(*player).unwrap();
-                let (tgt_x, tgt_y) = if let Some(pos) = input.mouse_target_pos {
+                let (tgt_pos_x, tgt_pos_y) = if let Some(pos) = input.mouse_target_pos {
                     (pos.x, pos.y)
                 } else {
                     let (dx, dy) = input.to_direction();
                     (pos.x + dx * TILE_SIZE, pos.y + dy * TILE_SIZE)
                 };
 
-                if self.is_position_blocked(tgt_x, tgt_y) {
+                if let Some(tgt) = input.mouse_target {
+                    let mut player_state = self.world.get_mut::<Player>(*player).unwrap();
+                    player_state.attacking = Some(tgt);
+                }
+
+                if self.is_position_blocked(tgt_pos_x, tgt_pos_y) {
                     return;
                 }
 
-                if let Some((x, y)) = self.map.get_tile_center("base", tgt_x, tgt_y) {
+                if let Some((x, y)) = self.map.get_tile_center("base", tgt_pos_x, tgt_pos_y) {
                     let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
 
                     (target_pos.x, target_pos.y) = (x, y);
@@ -248,9 +255,50 @@ impl Game {
             },
         );
 
+        drop(player_view);
+
         if !crea_moves.is_empty() {
             let msg = ServerMessage::CreatureBatchMoved(crea_moves);
             self.server.broadcast(&serialize(&msg).unwrap());
+        }
+
+        self.world.query::<(&mut Player,)>(|_, (player_state,)| {
+            if let Some(tgt) = player_state.attacking {
+                if let Some(mut health) = self.world.get_mut::<Health>(tgt.into()) {
+                    health.points -= 10.;
+
+                    if health.points <= 0. {
+                        player_state.attacking = None;
+                        self.dead_entities.push(tgt);
+
+                        println!("Creature {} died.", tgt);
+                        return;
+                    }
+
+                    let msg = ServerMessage::CreatureDamaged {
+                        id: tgt,
+                        health: *health,
+                    };
+                    self.server
+                        .broadcast_reliable(&serialize(&msg).unwrap(), true);
+                }
+            }
+        });
+
+        let mut to_remove = Vec::new();
+        for (idx, id) in self.dead_entities.iter().enumerate() {
+            let id = *id;
+            to_remove.push(idx);
+            self.world.despawn(id.into());
+
+            let msg = ServerMessage::EntityDied { id };
+
+            self.server
+                .broadcast_reliable(&serialize(&msg).unwrap(), true);
+        }
+
+        for idx in to_remove {
+            self.dead_entities.remove(idx);
         }
     }
 

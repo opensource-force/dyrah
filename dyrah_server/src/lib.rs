@@ -4,7 +4,9 @@ use dyrah_shared::{Position, map::TILE_SIZE};
 
 pub mod game;
 
-pub struct Player;
+pub struct Player {
+    pub attacking: Option<u64>,
+}
 
 pub struct Collider;
 pub struct Creature {

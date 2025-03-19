@@ -25,6 +25,8 @@ pub enum ServerMessage {
     CreatureBatchMoved(Vec<(u64, Position)>),
     PlayerConnected { position: Position, health: Health },
     PlayerMoved { id: u64, position: Position },
+    CreatureDamaged { id: u64, health: Health },
+    EntityDied { id: u64 },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -34,6 +36,7 @@ pub struct ClientInput {
     pub right: bool,
     pub down: bool,
     pub mouse_target_pos: Option<Position>,
+    pub mouse_target: Option<u64>,
 }
 
 impl ClientInput {
@@ -47,5 +50,5 @@ impl ClientInput {
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientMessage {
-    PlayerMove { input: ClientInput },
+    PlayerUpdate { input: ClientInput },
 }
