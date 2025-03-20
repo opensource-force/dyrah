@@ -1,17 +1,36 @@
+pub use glam::Vec2;
 use serde::{Deserialize, Serialize};
 
 pub mod map;
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Position {
-    pub x: f32,
-    pub y: f32,
+    pub vec: Vec2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+impl Position {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { vec: Vec2 { x, y } }
+    }
+
+    pub fn from(vec: Vec2) -> Self {
+        Self { vec }
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Copy)]
 pub struct TargetPosition {
-    pub x: f32,
-    pub y: f32,
+    pub vec: Vec2,
+}
+
+impl TargetPosition {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { vec: Vec2 { x, y } }
+    }
+
+    pub fn from(vec: Vec2) -> Self {
+        Self { vec }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -21,11 +40,11 @@ pub struct Health {
 
 #[derive(Serialize, Deserialize)]
 pub enum ServerMessage {
-    CreatureBatchSpawned(Vec<(Position, Health)>),
-    CreatureBatchMoved(Vec<(u64, Position)>),
-    PlayerConnected { position: Position, health: Health },
-    PlayerMoved { id: u64, position: Position },
-    CreatureDamaged { id: u64, health: Health },
+    CreatureBatchSpawned(Vec<(Vec2, f32)>),
+    CreatureBatchMoved(Vec<(u64, Vec2)>),
+    PlayerConnected { position: Vec2, hp: f32 },
+    PlayerMoved { id: u64, position: Vec2 },
+    CreatureDamaged { id: u64, hp: f32 },
     EntityDied { id: u64 },
 }
 
@@ -35,13 +54,13 @@ pub struct ClientInput {
     pub up: bool,
     pub right: bool,
     pub down: bool,
-    pub mouse_target_pos: Option<Position>,
+    pub mouse_target_pos: Option<Vec2>,
     pub mouse_target: Option<u64>,
 }
 
 impl ClientInput {
-    pub fn to_direction(&self) -> (f32, f32) {
-        (
+    pub fn to_direction(&self) -> Vec2 {
+        Vec2::new(
             (self.right as i8 - self.left as i8) as f32,
             (self.down as i8 - self.up as i8) as f32,
         )

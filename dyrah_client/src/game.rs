@@ -18,29 +18,52 @@ use crate::{
 fn render_system(world: &World) {
     let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
-    world.query::<(&Creature, &Sprite, &Position, &Health)>(|_, (_, spr, pos, health)| {
-        draw_texture_ex(
-            &crea_tex.0,
-            pos.x,
-            pos.y,
-            WHITE,
-            DrawTextureParams {
-                source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
-                ..Default::default()
-            },
-        );
+    world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
+        |_, (_, spr, pos, target_pos, health)| {
+            draw_rectangle_lines(
+                target_pos.vec.x,
+                target_pos.vec.y,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.,
+                RED,
+            );
+            draw_texture_ex(
+                &crea_tex.0,
+                pos.vec.x,
+                pos.vec.y,
+                WHITE,
+                DrawTextureParams {
+                    source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
+                    ..Default::default()
+                },
+            );
 
-        draw_rectangle(pos.x, pos.y, health.points / 100.0 * TILE_SIZE, 4., RED);
-    });
+            draw_rectangle(
+                pos.vec.x,
+                pos.vec.y,
+                health.points / 100.0 * TILE_SIZE,
+                4.,
+                RED,
+            );
+        },
+    );
 
     let player_tex = world.get_resource::<PlayerTexture>().unwrap();
 
     world.query::<(&Player, &Position, &TargetPosition, &Health)>(
         |_, (player_state, pos, target_pos, health)| {
-            draw_rectangle_lines(target_pos.x, target_pos.y, TILE_SIZE, TILE_SIZE, 2., BLUE);
+            draw_rectangle_lines(
+                target_pos.vec.x,
+                target_pos.vec.y,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.,
+                BLUE,
+            );
             draw_circle_lines(
-                target_pos.x + TILE_OFFSET,
-                target_pos.y + TILE_OFFSET,
+                target_pos.vec.x + TILE_OFFSET,
+                target_pos.vec.y + TILE_OFFSET,
                 1.,
                 2.,
                 YELLOW,
@@ -48,8 +71,8 @@ fn render_system(world: &World) {
 
             draw_texture_ex(
                 &player_tex.0,
-                pos.x,
-                pos.y,
+                pos.vec.x,
+                pos.vec.y,
                 WHITE,
                 DrawTextureParams {
                     source: Some(Rect::new(
@@ -62,7 +85,13 @@ fn render_system(world: &World) {
                 },
             );
 
-            draw_rectangle(pos.x, pos.y, health.points / 100. * TILE_SIZE, 4., GREEN);
+            draw_rectangle(
+                pos.vec.x,
+                pos.vec.y,
+                health.points / 100. * TILE_SIZE,
+                4.,
+                GREEN,
+            );
         },
     );
 }
@@ -121,34 +150,31 @@ impl Game {
     fn handle_server_messages(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::CreatureBatchSpawned(creatures) => {
-                for (pos, health) in creatures {
+                for (pos, hp) in creatures {
                     self.world.spawn((
                         Creature,
                         Sprite::from_frame(gen_range(0, 1) as f32, gen_range(0, 7) as f32),
-                        pos,
-                        TargetPosition { x: pos.x, y: pos.y },
-                        health,
+                        Position::from(pos),
+                        TargetPosition::from(pos),
+                        Health { points: hp },
                     ));
                 }
             }
             ServerMessage::CreatureBatchMoved(crea_moves) => {
                 for (id, pos) in crea_moves {
                     if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        *target_pos = TargetPosition { x: pos.x, y: pos.y };
+                        *target_pos = TargetPosition::from(pos);
                     }
                 }
             }
-            ServerMessage::PlayerConnected { position, health } => {
+            ServerMessage::PlayerConnected { position, hp } => {
                 let player = self.world.spawn((
                     Player {
                         sprite: Sprite::from_frame(1., 4.),
                     },
-                    position,
-                    TargetPosition {
-                        x: position.x,
-                        y: position.y,
-                    },
-                    health,
+                    Position::from(position),
+                    TargetPosition::from(position),
+                    Health { points: hp },
                 ));
 
                 if self.player.is_none() {
@@ -157,15 +183,12 @@ impl Game {
             }
             ServerMessage::PlayerMoved { id, position } => {
                 if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                    *target_pos = TargetPosition {
-                        x: position.x,
-                        y: position.y,
-                    };
+                    *target_pos = TargetPosition::from(position)
                 }
             }
-            ServerMessage::CreatureDamaged { id, health } => {
-                if let Some(mut hp) = self.world.get_mut::<Health>(id.into()) {
-                    *hp = health;
+            ServerMessage::CreatureDamaged { id, hp } => {
+                if let Some(mut health) = self.world.get_mut::<Health>(id.into()) {
+                    health.points = hp;
                 }
             }
             ServerMessage::EntityDied { id } => {
@@ -188,10 +211,7 @@ impl Game {
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
         let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
-            Some(Position {
-                x: mouse_world_pos.x,
-                y: mouse_world_pos.y,
-            })
+            Some(Vec2::new(mouse_world_pos.x, mouse_world_pos.y))
         } else {
             None
         };
@@ -200,7 +220,9 @@ impl Game {
 
             self.world
                 .query::<(&Creature, &Position)>(|entity, (_, pos)| {
-                    if Rect::new(pos.x, pos.y, TILE_SIZE, TILE_SIZE).contains(mouse_world_pos) {
+                    if Rect::new(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE)
+                        .contains(mouse_world_pos)
+                    {
                         target = Some(entity.id());
                     }
                 });
@@ -229,18 +251,16 @@ impl Game {
 
         self.world
             .query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.x = pos.x.lerp(target_pos.x, 5. * self.frame_time);
-                pos.y = pos.y.lerp(target_pos.y, 5. * self.frame_time);
+                pos.vec = pos.vec.lerp(target_pos.vec, 5. * self.frame_time);
 
                 self.camera
-                    .attach_sized(pos.x, pos.y, screen_width(), screen_height());
+                    .attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
                 self.camera.set();
             });
 
         self.world
             .query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.x = pos.x.lerp(target_pos.x, 3. * self.frame_time);
-                pos.y = pos.y.lerp(target_pos.y, 3. * self.frame_time);
+                pos.vec = pos.vec.lerp(target_pos.vec, 3. * self.frame_time);
             });
     }
 
@@ -255,8 +275,8 @@ impl Game {
             let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
 
             draw_rectangle_lines(
-                mouse_world_pos.x,
-                mouse_world_pos.y,
+                mouse_world_pos.x - TILE_OFFSET,
+                mouse_world_pos.y - TILE_OFFSET,
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,
