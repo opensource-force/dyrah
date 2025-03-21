@@ -14,6 +14,7 @@ pub struct Player {
 }
 
 pub struct Creature;
+pub struct MapTexture(Texture2D);
 pub struct PlayerTexture(Texture2D);
 pub struct CreatureTexture(Texture2D);
 

@@ -12,10 +12,16 @@ use dyrah_shared::{
 };
 
 use crate::{
-    Creature, CreatureTexture, Player, PlayerTexture, Sprite, camera::Camera, map::TiledMap,
+    Creature, CreatureTexture, MapTexture, Player, PlayerTexture, Sprite, camera::Camera,
+    map::TiledMap,
 };
 
 fn render_system(world: &World) {
+    let map = world.get_resource::<TiledMap>().unwrap();
+    let map_tex = world.get_resource::<MapTexture>().unwrap();
+
+    map.draw_tiles(&map_tex.0);
+
     let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
     world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
@@ -94,16 +100,40 @@ fn render_system(world: &World) {
             );
         },
     );
+
+    let cam = world.get_resource::<Camera>().unwrap();
+    let mouse_world_pos = cam.inner.screen_to_world(mouse_position().into());
+
+    draw_rectangle_lines(
+        mouse_world_pos.x - TILE_OFFSET,
+        mouse_world_pos.y - TILE_OFFSET,
+        TILE_SIZE,
+        TILE_SIZE,
+        2.,
+        PURPLE,
+    );
+}
+
+fn movement_system(world: &World) {
+    let mut cam = world.get_resource_mut::<Camera>().unwrap();
+    let frame_time = get_frame_time();
+
+    world.query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
+        pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time).ceil();
+
+        cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
+        cam.set();
+    });
+
+    world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
+        pos.vec = pos.vec.lerp(target_pos.vec, 3. * frame_time);
+    });
 }
 
 pub struct Game {
     client: Client<Transport>,
     world: World,
-    map: TiledMap,
-    map_texture: Texture2D,
-    camera: Camera,
     player: Option<Entity>,
-    frame_time: f32,
     last_input_time: f64,
 }
 
@@ -111,25 +141,25 @@ impl Game {
     pub async fn new() -> Self {
         let transport = Transport::new("127.0.0.1:0");
         let mut world = World::default();
-        let map = TiledMap::new("assets/map.json");
         let rogues_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
+        let map_tex = load_texture("assets/tiles.png").await.unwrap();
 
         set_default_filter_mode(FilterMode::Nearest);
 
+        world.add_resource(TiledMap::new("assets/map.json"));
+        world.add_resource(Camera::default());
+        world.add_resource(MapTexture(map_tex));
         world.add_resource(PlayerTexture(rogues_tex));
         world.add_resource(CreatureTexture(monsters_tex));
 
         world.add_system(render_system);
+        world.add_system(movement_system);
 
         Self {
             client: Client::new(transport, "127.0.0.1:8080"),
             world,
-            map,
-            map_texture: load_texture("assets/tiles.png").await.unwrap(),
-            camera: Camera::default(),
             player: None,
-            frame_time: get_frame_time(),
             last_input_time: 0.,
         }
     }
@@ -139,7 +169,6 @@ impl Game {
             match event {
                 ClientEvent::MessageReceived(bytes) => {
                     let msg = deserialize::<ServerMessage>(&bytes).unwrap();
-
                     self.handle_server_messages(msg);
                 }
                 _ => {}
@@ -163,7 +192,7 @@ impl Game {
             ServerMessage::CreatureBatchMoved(crea_moves) => {
                 for (id, pos) in crea_moves {
                     if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        *target_pos = TargetPosition::from(pos);
+                        target_pos.vec = pos;
                     }
                 }
             }
@@ -183,7 +212,7 @@ impl Game {
             }
             ServerMessage::PlayerMoved { id, position } => {
                 if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                    *target_pos = TargetPosition::from(position)
+                    target_pos.vec = position;
                 }
             }
             ServerMessage::CreatureDamaged { id, hp } => {
@@ -203,15 +232,16 @@ impl Game {
 
         root_ui().label(None, &format!("FPS: {}", get_fps()));
 
+        let cam = self.world.get_resource::<Camera>().unwrap();
+        let mouse_world_pos = cam.inner.screen_to_world(mouse_position().into());
         let current_time = get_time();
-        let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
 
         let left = is_key_down(KeyCode::A) || is_key_down(KeyCode::Left);
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
         let down = is_key_down(KeyCode::S) || is_key_down(KeyCode::Down);
         let mouse_target_pos = if is_mouse_button_released(MouseButton::Left) {
-            Some(Vec2::new(mouse_world_pos.x, mouse_world_pos.y))
+            Some(mouse_world_pos)
         } else {
             None
         };
@@ -224,6 +254,7 @@ impl Game {
                         .contains(mouse_world_pos)
                     {
                         target = Some(entity.id());
+                        return;
                     }
                 });
 
@@ -234,6 +265,8 @@ impl Game {
 
         if left || up || down || right || mouse_target_pos.is_some() || mouse_target.is_some() {
             if current_time - self.last_input_time >= 0.2 {
+                self.last_input_time = current_time;
+
                 let msg = ClientMessage::PlayerUpdate {
                     input: ClientInput {
                         left,
@@ -245,23 +278,8 @@ impl Game {
                     },
                 };
                 self.client.send(&serialize(&msg).unwrap());
-                self.last_input_time = current_time;
             }
         }
-
-        self.world
-            .query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.vec = pos.vec.lerp(target_pos.vec, 5. * self.frame_time);
-
-                self.camera
-                    .attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
-                self.camera.set();
-            });
-
-        self.world
-            .query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-                pos.vec = pos.vec.lerp(target_pos.vec, 3. * self.frame_time);
-            });
     }
 
     pub async fn run(&mut self) {
@@ -269,19 +287,7 @@ impl Game {
             clear_background(BLUE);
 
             self.update();
-            self.map.draw_tiles(&self.map_texture);
             self.world.run_systems();
-
-            let mouse_world_pos = self.camera.inner.screen_to_world(mouse_position().into());
-
-            draw_rectangle_lines(
-                mouse_world_pos.x - TILE_OFFSET,
-                mouse_world_pos.y - TILE_OFFSET,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.,
-                PURPLE,
-            );
 
             next_frame().await;
         }
