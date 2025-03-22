@@ -100,18 +100,6 @@ fn render_system(world: &World) {
             );
         },
     );
-
-    let cam = world.get_resource::<Camera>().unwrap();
-    let mouse_world_pos = cam.inner.screen_to_world(mouse_position().into());
-
-    draw_rectangle_lines(
-        mouse_world_pos.x - TILE_OFFSET,
-        mouse_world_pos.y - TILE_OFFSET,
-        TILE_SIZE,
-        TILE_SIZE,
-        2.,
-        PURPLE,
-    );
 }
 
 fn movement_system(world: &World) {
@@ -119,7 +107,7 @@ fn movement_system(world: &World) {
     let frame_time = get_frame_time();
 
     world.query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-        pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time).ceil();
+        pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
 
         cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
         cam.set();
@@ -215,7 +203,7 @@ impl Game {
                     target_pos.vec = position;
                 }
             }
-            ServerMessage::CreatureDamaged { id, hp } => {
+            ServerMessage::EntityDamaged { id, hp } => {
                 if let Some(mut health) = self.world.get_mut::<Health>(id.into()) {
                     health.points = hp;
                 }

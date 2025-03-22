@@ -6,11 +6,14 @@ pub mod game;
 
 pub struct Player {
     pub attacking: Option<u64>,
+    pub last_attack: Instant,
 }
 
 pub struct Collider;
 pub struct Creature {
+    pub attacking: Option<u64>,
     pub last_move: Instant,
+    pub last_attack: Instant,
 }
 
 pub struct PlayerView {
