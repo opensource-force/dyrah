@@ -12,8 +12,8 @@ use dyrah_shared::{
 };
 
 use crate::{
-    Creature, CreatureTexture, MapTexture, Player, PlayerTexture, Sprite, camera::Camera,
-    map::TiledMap,
+    Creature, CreatureTexture, Damage, Damages, MapTexture, Player, PlayerTexture, Sprite,
+    camera::Camera, map::TiledMap,
 };
 
 fn render_system(world: &World) {
@@ -100,6 +100,17 @@ fn render_system(world: &World) {
             );
         },
     );
+
+    let damages = world.get_resource::<Damages>().unwrap();
+    for num in &damages.numbers {
+        draw_text(
+            &num.value.to_string(),
+            num.position.x,
+            num.position.y,
+            16.0,
+            RED,
+        );
+    }
 }
 
 fn movement_system(world: &World) {
@@ -129,17 +140,18 @@ impl Game {
     pub async fn new() -> Self {
         let transport = Transport::new("127.0.0.1:0");
         let mut world = World::default();
+
+        set_default_filter_mode(FilterMode::Nearest);
         let rogues_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
         let map_tex = load_texture("assets/tiles.png").await.unwrap();
-
-        set_default_filter_mode(FilterMode::Nearest);
 
         world.add_resource(TiledMap::new("assets/map.json"));
         world.add_resource(Camera::default());
         world.add_resource(MapTexture(map_tex));
         world.add_resource(PlayerTexture(rogues_tex));
         world.add_resource(CreatureTexture(monsters_tex));
+        world.add_resource(Damages::default());
 
         world.add_system(render_system);
         world.add_system(movement_system);
@@ -205,6 +217,15 @@ impl Game {
             }
             ServerMessage::EntityDamaged { id, hp } => {
                 if let Some(mut health) = self.world.get_mut::<Health>(id.into()) {
+                    let mut damages = self.world.get_resource_mut::<Damages>().unwrap();
+                    let pos = self.world.get::<Position>(id.into()).unwrap();
+
+                    damages.numbers.push(Damage {
+                        value: health.points - hp,
+                        position: vec2(pos.vec.x, pos.vec.y + 2.),
+                        lifetime: 1.,
+                    });
+
                     health.points = hp;
                 }
             }
@@ -268,6 +289,16 @@ impl Game {
                 self.client.send(&serialize(&msg).unwrap());
             }
         }
+
+        self.world
+            .get_resource_mut::<Damages>()
+            .unwrap()
+            .numbers
+            .retain_mut(|num| {
+                num.position.y -= get_frame_time() * 20.0;
+                num.lifetime -= get_frame_time();
+                num.lifetime > 0.0
+            });
     }
 
     pub async fn run(&mut self) {
