@@ -27,6 +27,7 @@ pub struct PlayerTexture(Texture2D);
 pub struct CreatureTexture(Texture2D);
 
 pub struct Damage {
+    pub origin: u64,
     pub value: f32,
     pub position: Vec2,
     pub lifetime: f32,

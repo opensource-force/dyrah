@@ -1,3 +1,5 @@
+use std::process::exit;
+
 use bincode::{deserialize, serialize};
 use macroquad::{prelude::*, rand::gen_range, ui::root_ui};
 use secs::{Entity, World};
@@ -7,8 +9,7 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientInput, ClientMessage, Health, Position, ServerMessage, TargetPosition,
-    map::{TILE_OFFSET, TILE_SIZE},
+    ClientInput, ClientMessage, Health, Position, ServerMessage, TargetPosition, map::TILE_SIZE,
 };
 
 use crate::{
@@ -32,7 +33,7 @@ fn render_system(world: &World) {
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,
-                RED,
+                GRAY,
             );
             draw_texture_ex(
                 &crea_tex.0,
@@ -48,7 +49,7 @@ fn render_system(world: &World) {
             draw_rectangle(
                 pos.vec.x,
                 pos.vec.y,
-                health.points / 100.0 * TILE_SIZE,
+                health.points / 100. * TILE_SIZE,
                 4.,
                 RED,
             );
@@ -65,14 +66,7 @@ fn render_system(world: &World) {
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,
-                BLUE,
-            );
-            draw_circle_lines(
-                target_pos.vec.x + TILE_OFFSET,
-                target_pos.vec.y + TILE_OFFSET,
-                1.,
-                2.,
-                YELLOW,
+                WHITE,
             );
 
             draw_texture_ex(
@@ -103,11 +97,14 @@ fn render_system(world: &World) {
 
     let damages = world.get_resource::<Damages>().unwrap();
     for num in &damages.numbers {
+        let pos = world.get::<Position>(num.origin.into()).unwrap();
+        draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
+
         draw_text(
             &num.value.to_string(),
             num.position.x,
             num.position.y,
-            16.0,
+            16.,
             RED,
         );
     }
@@ -215,12 +212,13 @@ impl Game {
                     target_pos.vec = position;
                 }
             }
-            ServerMessage::EntityDamaged { id, hp } => {
+            ServerMessage::EntityDamaged { origin, id, hp } => {
                 if let Some(mut health) = self.world.get_mut::<Health>(id.into()) {
                     let mut damages = self.world.get_resource_mut::<Damages>().unwrap();
                     let pos = self.world.get::<Position>(id.into()).unwrap();
 
                     damages.numbers.push(Damage {
+                        origin,
                         value: health.points - hp,
                         position: vec2(pos.vec.x, pos.vec.y + 2.),
                         lifetime: 1.,
@@ -231,6 +229,10 @@ impl Game {
             }
             ServerMessage::EntityDied { id } => {
                 self.world.despawn(id.into());
+
+                if self.player == Some(id.into()) {
+                    exit(1);
+                }
             }
         }
     }
@@ -295,9 +297,9 @@ impl Game {
             .unwrap()
             .numbers
             .retain_mut(|num| {
-                num.position.y -= get_frame_time() * 20.0;
+                num.position.y -= get_frame_time() * 20.;
                 num.lifetime -= get_frame_time();
-                num.lifetime > 0.0
+                num.lifetime > 0.
             });
     }
 

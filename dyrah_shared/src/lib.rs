@@ -44,7 +44,7 @@ pub enum ServerMessage {
     CreatureBatchMoved(Vec<(u64, Vec2)>),
     PlayerConnected { position: Vec2, hp: f32 },
     PlayerMoved { id: u64, position: Vec2 },
-    EntityDamaged { id: u64, hp: f32 },
+    EntityDamaged { origin: u64, id: u64, hp: f32 },
     EntityDied { id: u64 },
 }
 

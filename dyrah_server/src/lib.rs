@@ -11,7 +11,7 @@ pub struct Player {
 
 pub struct Collider;
 pub struct Creature {
-    pub attacking: Option<u64>,
+    pub following: Option<u64>,
     pub last_move: Instant,
     pub last_attack: Instant,
 }

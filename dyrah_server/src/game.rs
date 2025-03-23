@@ -44,7 +44,7 @@ impl Game {
             let now = Instant::now();
             world.spawn((
                 Creature {
-                    attacking: None,
+                    following: None,
                     last_move: now,
                     last_attack: now,
                 },
@@ -153,27 +153,31 @@ impl Game {
     fn handle_client_messages(&mut self, addr: &str, msg: ClientMessage) {
         match msg {
             ClientMessage::PlayerUpdate { input } => {
-                let player = self.lobby.get(addr).unwrap();
-                let pos = self.world.get::<Position>(*player).unwrap();
-                let tgt_pos = if let Some(pos) = input.mouse_target_pos {
-                    pos
-                } else {
-                    let dir = input.to_direction();
-                    pos.vec + dir * TILE_SIZE
-                };
+                if let Some(player) = self.lobby.get(addr) {
+                    if !self.world.is_attached::<Position>(*player) {
+                        return;
+                    }
+                    let pos = self.world.get::<Position>(*player).unwrap();
+                    let tgt_pos = if let Some(pos) = input.mouse_target_pos {
+                        pos
+                    } else {
+                        let dir = input.to_direction();
+                        pos.vec + dir * TILE_SIZE
+                    };
 
-                if let Some(tgt) = input.mouse_target {
-                    let mut player_state = self.world.get_mut::<Player>(*player).unwrap();
-                    player_state.attacking = Some(tgt);
-                }
+                    if let Some(tgt) = input.mouse_target {
+                        let mut player_state = self.world.get_mut::<Player>(*player).unwrap();
+                        player_state.attacking = Some(tgt);
+                    }
 
-                if self.is_position_blocked(tgt_pos.into()) {
-                    return;
-                }
+                    if self.is_position_blocked(tgt_pos.into()) {
+                        return;
+                    }
 
-                if let Some(tile_center) = self.map.get_tile_center("base", tgt_pos.into()) {
-                    let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
-                    target_pos.vec = tile_center;
+                    if let Some(tile_center) = self.map.get_tile_center("base", tgt_pos.into()) {
+                        let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
+                        target_pos.vec = tile_center;
+                    }
                 }
             }
         }
@@ -190,15 +194,17 @@ impl Game {
                 |entity, (_, pos, target_pos)| {
                     pos.vec = target_pos.vec;
 
-                    if pos.vec.distance(target_pos.vec) < TILE_SIZE {
-                        player_view.position = pos.vec;
-
-                        let msg = ServerMessage::PlayerMoved {
-                            id: entity.id(),
-                            position: pos.vec,
-                        };
-                        self.server.broadcast(&serialize(&msg).unwrap())
+                    if pos.vec.distance(target_pos.vec) > TILE_SIZE {
+                        return;
                     }
+
+                    player_view.position = pos.vec;
+
+                    let msg = ServerMessage::PlayerMoved {
+                        id: entity.id(),
+                        position: pos.vec,
+                    };
+                    self.server.broadcast(&serialize(&msg).unwrap())
                 },
             );
 
@@ -210,13 +216,15 @@ impl Game {
                 if now - crea_state.last_move < Duration::from_secs(random_range(2..=4)) {
                     return;
                 }
-                crea_state.last_move = now;
 
                 let pos = self.world.get::<Position>(entity).unwrap();
 
-                target_pos.vec += if let Some(tgt) = crea_state.attacking {
-                    let player_pos = self.world.get::<Position>(tgt.into()).unwrap();
-                    (player_pos.vec - pos.vec).signum() * TILE_SIZE
+                target_pos.vec += if let Some(tgt) = crea_state.following {
+                    if !self.world.is_attached::<Position>(tgt.into()) {
+                        return;
+                    }
+                    let tgt_pos = self.world.get::<Position>(tgt.into()).unwrap();
+                    (tgt_pos.vec - pos.vec).signum() * TILE_SIZE
                 } else {
                     let mut rng = rng();
                     let dir = Vec2::new(
@@ -237,6 +245,8 @@ impl Game {
                     let mut pos = self.world.get_mut::<Position>(entity).unwrap();
                     pos.vec = tile_center;
 
+                    crea_state.last_move = now;
+
                     crea_moves.push((entity.id(), pos.vec));
                 }
             },
@@ -249,87 +259,93 @@ impl Game {
             self.server.broadcast(&serialize(&msg).unwrap());
         }
 
-        self.world.query::<(&mut Player,)>(|_, (player_state,)| {
-            if let Some(tgt) = player_state.attacking {
-                if Instant::now() - player_state.last_attack < Duration::from_millis(800) {
-                    return;
+        self.world
+            .query::<(&mut Player,)>(|player, (player_state,)| {
+                if let Some(tgt) = player_state.attacking {
+                    if Instant::now() - player_state.last_attack < Duration::from_millis(800) {
+                        return;
+                    }
+
+                    if !self.world.is_attached::<Health>(tgt.into()) {
+                        return;
+                    }
+
+                    let mut health = self.world.get_mut::<Health>(tgt.into()).unwrap();
+                    health.points -= rng().random_range(5.0..20.);
+
+                    if health.points <= 0. {
+                        player_state.attacking = None;
+                        self.dead_entities.push(tgt);
+
+                        println!("Creature {} died.", tgt);
+                        return;
+                    }
+
+                    player_state.last_attack = Instant::now();
+
+                    let msg = ServerMessage::EntityDamaged {
+                        origin: player.id(),
+                        id: tgt,
+                        hp: health.points,
+                    };
+                    self.server
+                        .broadcast_reliable(&serialize(&msg).unwrap(), true);
                 }
-
-                if !self.world.is_attached::<Health>(tgt.into()) {
-                    return;
-                }
-
-                let mut health = self.world.get_mut::<Health>(tgt.into()).unwrap();
-                health.points -= rng().random_range(5.0..20.);
-
-                if health.points <= 0. {
-                    player_state.attacking = None;
-                    self.dead_entities.push(tgt);
-
-                    println!("Creature {} died.", tgt);
-                    return;
-                }
-
-                player_state.last_attack = Instant::now();
-
-                let msg = ServerMessage::EntityDamaged {
-                    id: tgt,
-                    hp: health.points,
-                };
-                self.server
-                    .broadcast_reliable(&serialize(&msg).unwrap(), true);
-            }
-        });
+            });
 
         self.world
-            .query::<(&mut Creature, &Position)>(|_, (crea_state, pos)| {
+            .query::<(&mut Creature, &Position)>(|crea, (crea_state, pos)| {
                 if Instant::now() - crea_state.last_attack < Duration::from_secs(1) {
                     return;
                 }
 
                 for player in self.lobby.values() {
                     if !self.world.is_attached::<Health>(*player) {
-                        return;
+                        continue;
                     }
 
                     let player_pos = self.world.get::<Position>(*player).unwrap();
 
-                    if pos.vec.distance(player_pos.vec) < TILE_SIZE * 5. {
-                        crea_state.attacking = Some(player.id());
-
-                        if pos.vec.distance(player_pos.vec) > TILE_SIZE {
-                            return;
-                        }
-
-                        let mut player_health = self.world.get_mut::<Health>(*player).unwrap();
-                        player_health.points -= rng().random_range(2.0..5.);
-
-                        if player_health.points <= 0. {
-                            crea_state.attacking = None;
-                            self.dead_entities.push(player.id());
-
-                            println!("Player {} passed away.", player.id());
-                            return;
-                        }
-
-                        crea_state.last_attack = Instant::now();
-
-                        let msg = ServerMessage::EntityDamaged {
-                            id: player.id(),
-                            hp: player_health.points,
-                        };
-                        self.server
-                            .broadcast_reliable(&serialize(&msg).unwrap(), false);
+                    if pos.vec.distance(player_pos.vec) > TILE_SIZE * 5. {
+                        crea_state.following = None;
+                        continue;
                     }
+                    crea_state.following = Some(player.id());
+
+                    if pos.vec.distance(player_pos.vec) > TILE_SIZE {
+                        continue;
+                    }
+
+                    let mut player_health = self.world.get_mut::<Health>(*player).unwrap();
+                    player_health.points -= rng().random_range(2.0..5.);
+
+                    if player_health.points <= 0. {
+                        crea_state.following = None;
+                        self.dead_entities.push(player.id());
+
+                        println!("Player {} passed away.", player.id());
+                        continue;
+                    }
+
+                    crea_state.last_attack = Instant::now();
+
+                    let msg = ServerMessage::EntityDamaged {
+                        origin: crea.id(),
+                        id: player.id(),
+                        hp: player_health.points,
+                    };
+                    self.server
+                        .broadcast_reliable(&serialize(&msg).unwrap(), false);
                 }
             });
 
         for id in self.dead_entities.drain(..) {
             self.world.despawn(id.into());
+            self.lobby.retain(|_, &mut entity| entity.id() != id);
 
             let msg = ServerMessage::EntityDied { id };
             self.server
-                .broadcast_reliable(&serialize(&msg).unwrap(), true);
+                .broadcast_reliable(&serialize(&msg).unwrap(), false);
         }
     }
 
