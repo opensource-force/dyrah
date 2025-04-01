@@ -80,8 +80,8 @@ fn render_system(world: &World) {
 
         draw_texture_ex(
             &player_tex.0,
-            pos.vec.x - if spr.is_flipped.x { TILE_SIZE } else { 0. },
-            pos.vec.y,
+            pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
+            pos.vec.y - TILE_SIZE,
             WHITE,
             DrawTextureParams {
                 source: Some(spr.animation.frame().source_rect),
@@ -94,7 +94,7 @@ fn render_system(world: &World) {
 
         draw_rectangle(
             pos.vec.x,
-            pos.vec.y,
+            pos.vec.y - TILE_SIZE,
             health.points / 100. * TILE_SIZE,
             4.,
             GREEN,
