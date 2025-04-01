@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 
 pub mod map;
 
+pub const TILE_SIZE: f32 = 32.;
+pub const TILE_OFFSET: f32 = 16.;
+pub const SPRITE_SIZE: f32 = 64.;
+
 #[derive(Serialize, Deserialize, Default, Clone, Copy)]
 pub struct Position {
     pub vec: Vec2,
@@ -42,10 +46,23 @@ pub struct Health {
 pub enum ServerMessage {
     CreatureBatchSpawned(Vec<(Vec2, f32)>),
     CreatureBatchMoved(Vec<(u64, Vec2)>),
-    PlayerConnected { position: Vec2, hp: f32 },
-    PlayerMoved { id: u64, position: Vec2 },
-    EntityDamaged { origin: u64, id: u64, hp: f32 },
-    EntityDied { id: u64 },
+    PlayerConnected {
+        position: Vec2,
+        hp: f32,
+    },
+    PlayerMoved {
+        id: u64,
+        position: Vec2,
+    },
+    EntityDamaged {
+        attacker: u64,
+        defender: u64,
+        hp: f32,
+    },
+    EntityDied {
+        killer: u64,
+        victim: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize)]

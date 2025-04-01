@@ -1,7 +1,11 @@
 use std::process::exit;
 
 use bincode::{deserialize, serialize};
-use macroquad::{prelude::*, rand::gen_range, ui::root_ui};
+use macroquad::{
+    prelude::{animation::Animation, *},
+    rand::gen_range,
+    ui::root_ui,
+};
 use secs::{Entity, World};
 use wrym::{
     client::{Client, ClientEvent},
@@ -9,7 +13,7 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientInput, ClientMessage, Health, Position, ServerMessage, TargetPosition, map::TILE_SIZE,
+    ClientInput, ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition,
 };
 
 use crate::{
@@ -20,10 +24,10 @@ use crate::{
 fn render_system(world: &World) {
     let map = world.get_resource::<TiledMap>().unwrap();
     let map_tex = world.get_resource::<MapTexture>().unwrap();
+    let player_tex = world.get_resource::<PlayerTexture>().unwrap();
+    let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
     map.draw_tiles(&map_tex.0);
-
-    let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
     world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
         |_, (_, spr, pos, target_pos, health)| {
@@ -56,57 +60,62 @@ fn render_system(world: &World) {
         },
     );
 
-    let player_tex = world.get_resource::<PlayerTexture>().unwrap();
+    world.query::<(
+        &mut Player,
+        &mut Sprite,
+        &Position,
+        &TargetPosition,
+        &Health,
+    )>(|_, (_, spr, pos, target_pos, health)| {
+        spr.animation.update();
 
-    world.query::<(&Player, &Position, &TargetPosition, &Health)>(
-        |_, (player_state, pos, target_pos, health)| {
-            draw_rectangle_lines(
-                target_pos.vec.x,
-                target_pos.vec.y,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.,
-                WHITE,
-            );
+        draw_rectangle_lines(
+            target_pos.vec.x,
+            target_pos.vec.y,
+            TILE_SIZE,
+            TILE_SIZE,
+            2.,
+            WHITE,
+        );
 
-            draw_texture_ex(
-                &player_tex.0,
-                pos.vec.x,
-                pos.vec.y,
-                WHITE,
-                DrawTextureParams {
-                    source: Some(Rect::new(
-                        player_state.sprite.frame.0,
-                        player_state.sprite.frame.1,
-                        TILE_SIZE,
-                        TILE_SIZE,
-                    )),
-                    ..Default::default()
-                },
-            );
+        draw_texture_ex(
+            &player_tex.0,
+            pos.vec.x - if spr.is_flipped.x { TILE_SIZE } else { 0. },
+            pos.vec.y,
+            WHITE,
+            DrawTextureParams {
+                source: Some(spr.animation.frame().source_rect),
+                dest_size: Some(spr.animation.frame().dest_size),
+                flip_x: spr.is_flipped.x,
+                flip_y: spr.is_flipped.y,
+                ..Default::default()
+            },
+        );
 
-            draw_rectangle(
-                pos.vec.x,
-                pos.vec.y,
-                health.points / 100. * TILE_SIZE,
-                4.,
-                GREEN,
-            );
-        },
-    );
+        draw_rectangle(
+            pos.vec.x,
+            pos.vec.y,
+            health.points / 100. * TILE_SIZE,
+            4.,
+            GREEN,
+        );
+    });
 
     let damages = world.get_resource::<Damages>().unwrap();
     for num in &damages.numbers {
-        let pos = world.get::<Position>(num.origin.into()).unwrap();
-        draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
+        if world.is_attached::<Position>(num.origin.into()) {
+            if let Some(pos) = world.get::<Position>(num.origin.into()) {
+                draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
 
-        draw_text(
-            &num.value.to_string(),
-            num.position.x,
-            num.position.y,
-            16.,
-            RED,
-        );
+                draw_text(
+                    &num.value.to_string(),
+                    num.position.x,
+                    num.position.y,
+                    16.,
+                    RED,
+                );
+            }
+        }
     }
 }
 
@@ -114,12 +123,20 @@ fn movement_system(world: &World) {
     let mut cam = world.get_resource_mut::<Camera>().unwrap();
     let frame_time = get_frame_time();
 
-    world.query::<(&Player, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-        pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
+    world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
+        |_, (_, spr, pos, target_pos)| {
+            pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
 
-        cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
-        cam.set();
-    });
+            if target_pos.vec.x < pos.vec.x {
+                spr.is_flipped.x = true;
+            } else if target_pos.vec.x > pos.vec.x {
+                spr.is_flipped.x = false;
+            }
+
+            cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
+            cam.set();
+        },
+    );
 
     world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
         pos.vec = pos.vec.lerp(target_pos.vec, 3. * frame_time);
@@ -139,14 +156,14 @@ impl Game {
         let mut world = World::default();
 
         set_default_filter_mode(FilterMode::Nearest);
-        let rogues_tex = load_texture("assets/32rogues/rogues.png").await.unwrap();
+        let player_tex = load_texture("assets/wizard.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
         let map_tex = load_texture("assets/tiles.png").await.unwrap();
 
         world.add_resource(TiledMap::new("assets/map.json"));
         world.add_resource(Camera::default());
         world.add_resource(MapTexture(map_tex));
-        world.add_resource(PlayerTexture(rogues_tex));
+        world.add_resource(PlayerTexture(player_tex));
         world.add_resource(CreatureTexture(monsters_tex));
         world.add_resource(Damages::default());
 
@@ -194,10 +211,25 @@ impl Game {
                 }
             }
             ServerMessage::PlayerConnected { position, hp } => {
+                let player_anims = &[
+                    Animation {
+                        name: "idle".to_string(),
+                        row: 0,
+                        frames: 1,
+                        fps: 0,
+                    },
+                    Animation {
+                        name: "casting".to_string(),
+                        row: 0,
+                        frames: 6,
+                        fps: 5,
+                    },
+                ];
                 let player = self.world.spawn((
                     Player {
-                        sprite: Sprite::from_frame(1., 4.),
+                        is_attacking: false,
                     },
+                    Sprite::new(player_anims),
                     Position::from(position),
                     TargetPosition::from(position),
                     Health { points: hp },
@@ -212,13 +244,25 @@ impl Game {
                     target_pos.vec = position;
                 }
             }
-            ServerMessage::EntityDamaged { origin, id, hp } => {
-                if let Some(mut health) = self.world.get_mut::<Health>(id.into()) {
+            ServerMessage::EntityDamaged {
+                attacker,
+                defender,
+                hp,
+            } => {
+                self.world
+                    .query::<(&mut Player, &mut Sprite)>(|player, (state, spr)| {
+                        if player.id() == attacker {
+                            spr.animation.set_animation(1);
+                            state.is_attacking = true;
+                        }
+                    });
+
+                if let Some(mut health) = self.world.get_mut::<Health>(defender.into()) {
                     let mut damages = self.world.get_resource_mut::<Damages>().unwrap();
-                    let pos = self.world.get::<Position>(id.into()).unwrap();
+                    let pos = self.world.get::<Position>(defender.into()).unwrap();
 
                     damages.numbers.push(Damage {
-                        origin,
+                        origin: attacker,
                         value: health.points - hp,
                         position: vec2(pos.vec.x, pos.vec.y + 2.),
                         lifetime: 1.,
@@ -227,12 +271,20 @@ impl Game {
                     health.points = hp;
                 }
             }
-            ServerMessage::EntityDied { id } => {
-                self.world.despawn(id.into());
+            ServerMessage::EntityDied { killer, victim } => {
+                self.world.despawn(victim.into());
 
-                if self.player == Some(id.into()) {
+                if self.player == Some(victim.into()) {
                     exit(1);
                 }
+
+                self.world
+                    .query::<(&mut Player, &mut Sprite)>(|player, (state, spr)| {
+                        if player.id() == killer {
+                            spr.animation.set_animation(0);
+                            state.is_attacking = false;
+                        }
+                    });
             }
         }
     }

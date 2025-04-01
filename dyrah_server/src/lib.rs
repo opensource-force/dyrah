@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use dyrah_shared::{Vec2, map::TILE_SIZE};
+use dyrah_shared::{TILE_SIZE, Vec2};
 
 pub mod game;
 

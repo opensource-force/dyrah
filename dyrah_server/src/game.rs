@@ -6,8 +6,7 @@ use std::{
 
 use bincode::{deserialize, serialize};
 use dyrah_shared::{
-    ClientMessage, Health, Position, ServerMessage, TargetPosition, Vec2,
-    map::{TILE_SIZE, TiledMap},
+    ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition, Vec2, map::TiledMap,
 };
 use rand::{Rng, random_range, rng};
 use secs::{Entity, World};
@@ -23,7 +22,7 @@ pub struct Game {
     lobby: HashMap<String, Entity>,
     world: World,
     map: TiledMap,
-    dead_entities: Vec<u64>,
+    dead_entities: Vec<(u64, u64)>,
 }
 
 impl Game {
@@ -275,7 +274,7 @@ impl Game {
 
                     if health.points <= 0. {
                         player_state.attacking = None;
-                        self.dead_entities.push(tgt);
+                        self.dead_entities.push((player.id(), tgt));
 
                         println!("Creature {} died.", tgt);
                         return;
@@ -284,8 +283,8 @@ impl Game {
                     player_state.last_attack = Instant::now();
 
                     let msg = ServerMessage::EntityDamaged {
-                        origin: player.id(),
-                        id: tgt,
+                        attacker: player.id(),
+                        defender: tgt,
                         hp: health.points,
                     };
                     self.server
@@ -321,7 +320,7 @@ impl Game {
 
                     if player_health.points <= 0. {
                         crea_state.following = None;
-                        self.dead_entities.push(player.id());
+                        self.dead_entities.push((crea.id(), player.id()));
 
                         println!("Player {} passed away.", player.id());
                         continue;
@@ -330,8 +329,8 @@ impl Game {
                     crea_state.last_attack = Instant::now();
 
                     let msg = ServerMessage::EntityDamaged {
-                        origin: crea.id(),
-                        id: player.id(),
+                        attacker: crea.id(),
+                        defender: player.id(),
                         hp: player_health.points,
                     };
                     self.server
@@ -339,11 +338,11 @@ impl Game {
                 }
             });
 
-        for id in self.dead_entities.drain(..) {
-            self.world.despawn(id.into());
-            self.lobby.retain(|_, &mut entity| entity.id() != id);
+        for (killer, victim) in self.dead_entities.drain(..) {
+            self.world.despawn(victim.into());
+            self.lobby.retain(|_, &mut entity| entity.id() != victim);
 
-            let msg = ServerMessage::EntityDied { id };
+            let msg = ServerMessage::EntityDied { killer, victim };
             self.server
                 .broadcast_reliable(&serialize(&msg).unwrap(), false);
         }

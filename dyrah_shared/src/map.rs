@@ -4,8 +4,7 @@ use glam::Vec2;
 use serde::Deserialize;
 use serde_json::from_str;
 
-pub const TILE_SIZE: f32 = 32.;
-pub const TILE_OFFSET: f32 = 16.;
+use crate::TILE_OFFSET;
 
 #[derive(Deserialize, Debug)]
 pub struct TiledMap {
