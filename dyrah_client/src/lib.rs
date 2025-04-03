@@ -1,4 +1,4 @@
-use dyrah_shared::{SPRITE_SIZE, TILE_SIZE};
+use dyrah_shared::TILE_SIZE;
 use macroquad::{
     math::Vec2,
     prelude::animation::{AnimatedSprite, Animation},
@@ -8,6 +8,8 @@ use macroquad::{
 mod camera;
 pub mod game;
 mod map;
+
+pub const SPRITE_SIZE: f32 = 64.;
 
 struct SpriteFlip {
     x: bool,
@@ -48,7 +50,6 @@ pub struct Player {
 }
 
 pub struct Creature;
-pub struct MapTexture(Texture2D);
 pub struct PlayerTexture(Texture2D);
 pub struct CreatureTexture(Texture2D);
 

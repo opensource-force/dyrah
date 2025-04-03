@@ -17,17 +17,16 @@ use dyrah_shared::{
 };
 
 use crate::{
-    Creature, CreatureTexture, Damage, Damages, MapTexture, Player, PlayerTexture, Sprite,
-    camera::Camera, map::TiledMap,
+    Creature, CreatureTexture, Damage, Damages, Player, PlayerTexture, Sprite, camera::Camera,
+    map::TiledMap,
 };
 
 fn render_system(world: &World) {
     let map = world.get_resource::<TiledMap>().unwrap();
-    let map_tex = world.get_resource::<MapTexture>().unwrap();
     let player_tex = world.get_resource::<PlayerTexture>().unwrap();
     let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
 
-    map.draw_tiles(&map_tex.0);
+    map.draw_tiles();
 
     world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
         |_, (_, spr, pos, target_pos, health)| {
@@ -67,8 +66,6 @@ fn render_system(world: &World) {
         &TargetPosition,
         &Health,
     )>(|_, (_, spr, pos, target_pos, health)| {
-        spr.animation.update();
-
         draw_rectangle_lines(
             target_pos.vec.x,
             target_pos.vec.y,
@@ -103,18 +100,16 @@ fn render_system(world: &World) {
 
     let damages = world.get_resource::<Damages>().unwrap();
     for num in &damages.numbers {
-        if world.is_attached::<Position>(num.origin.into()) {
-            if let Some(pos) = world.get::<Position>(num.origin.into()) {
-                draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
+        if let Some(pos) = world.get::<Position>(num.origin.into()) {
+            draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
 
-                draw_text(
-                    &num.value.to_string(),
-                    num.position.x,
-                    num.position.y,
-                    16.,
-                    RED,
-                );
-            }
+            draw_text(
+                &num.value.to_string(),
+                num.position.x,
+                num.position.y,
+                16.,
+                RED,
+            );
         }
     }
 }
@@ -132,6 +127,8 @@ fn movement_system(world: &World) {
             } else if target_pos.vec.x > pos.vec.x {
                 spr.is_flipped.x = false;
             }
+
+            spr.animation.update();
 
             cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
             cam.set();
@@ -158,11 +155,9 @@ impl Game {
         set_default_filter_mode(FilterMode::Nearest);
         let player_tex = load_texture("assets/wizard.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
-        let map_tex = load_texture("assets/tiles.png").await.unwrap();
 
-        world.add_resource(TiledMap::new("assets/map.json"));
+        world.add_resource(TiledMap::new("assets/map.json").await);
         world.add_resource(Camera::default());
-        world.add_resource(MapTexture(map_tex));
         world.add_resource(PlayerTexture(player_tex));
         world.add_resource(CreatureTexture(monsters_tex));
         world.add_resource(Damages::default());

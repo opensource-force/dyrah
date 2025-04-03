@@ -1,10 +1,40 @@
 use std::fs::read_to_string;
 
-use glam::Vec2;
+use glam::{Vec2, vec2};
 use serde::Deserialize;
 use serde_json::from_str;
 
 use crate::TILE_OFFSET;
+
+#[derive(Deserialize, Debug)]
+pub struct TiledObject {
+    pub id: u32,
+    pub name: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TiledLayer {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub name: String,
+    pub visible: bool,
+    pub data: Option<Vec<u32>>,
+    pub objects: Option<Vec<TiledObject>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TiledTileset {
+    pub firstgid: u32,
+    pub source: Option<String>,
+    pub image: Option<String>,
+    pub tilecount: Option<u32>,
+    pub tilewidth: Option<u32>,
+    pub tileheight: Option<u32>,
+}
 
 #[derive(Deserialize, Debug)]
 pub struct TiledMap {
@@ -13,15 +43,7 @@ pub struct TiledMap {
     pub tilewidth: u32,
     pub tileheight: u32,
     pub layers: Vec<TiledLayer>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TiledLayer {
-    pub width: u32,
-    pub height: u32,
-    pub name: String,
-    pub visible: bool,
-    pub data: Vec<u32>,
+    pub tilesets: Vec<TiledTileset>,
 }
 
 impl TiledMap {
@@ -58,12 +80,16 @@ impl TiledMap {
     }
 
     pub fn is_walkable(&self, layer_name: &str, vec: Vec2) -> bool {
-        let layer = self.get_layer(layer_name).unwrap();
+        if let Some(layer) = self.get_layer(layer_name) {
+            if let Some((tile_x, tile_y)) = self.world_to_tile(vec.x, vec.y) {
+                let index = (tile_y * layer.width.unwrap() as f32 + tile_x) as usize;
 
-        if let Some((tile_x, tile_y)) = self.world_to_tile(vec.x, vec.y) {
-            let index = (tile_y * layer.width as f32 + tile_x) as usize;
-
-            return layer.data.get(index).map_or(false, |&tile| tile == 0);
+                return layer
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.get(index))
+                    .map_or(false, |&tile| tile == 0);
+            }
         }
 
         false
@@ -73,9 +99,14 @@ impl TiledMap {
         let layer = self.get_layer(layer_name)?;
 
         if let Some((tile_x, tile_y)) = self.world_to_tile(x, y) {
-            let index = (tile_y * layer.width as f32 + tile_x) as usize;
+            let index = (tile_y * layer.width.unwrap() as f32 + tile_x) as usize;
 
-            if layer.data.get(index).map_or(false, |&tile| tile != 0) {
+            if layer
+                .data
+                .as_ref()
+                .and_then(|data| data.get(index))
+                .map_or(false, |&tile| tile != 0)
+            {
                 return Some((tile_x as f32, tile_y as f32));
             }
         }
@@ -95,5 +126,13 @@ impl TiledMap {
         }
 
         None
+    }
+
+    pub fn get_spawn(&self, name: &str) -> Option<Vec2> {
+        self.layers
+            .iter()
+            .find(|l| l.name == "spawns")
+            .and_then(|layer| layer.objects.as_ref()?.iter().find(|obj| obj.name == name))
+            .map(|obj| vec2(obj.x, obj.y))
     }
 }

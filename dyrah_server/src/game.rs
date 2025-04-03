@@ -96,8 +96,7 @@ impl Game {
                                 .send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
                         });
 
-                    let player_pos =
-                        Vec2::new(self.map.width as f32 / 2., self.map.height as f32 / 2.);
+                    let spawn_pos = self.map.get_spawn("player").unwrap();
                     let player_health = Health { points: 100. };
                     let player = self.world.spawn((
                         Player {
@@ -105,8 +104,8 @@ impl Game {
                             last_attack: Instant::now(),
                         },
                         Collider,
-                        Position::from(player_pos),
-                        TargetPosition::new(player_pos.x, player_pos.y),
+                        Position::from(spawn_pos),
+                        TargetPosition::new(spawn_pos.x, spawn_pos.y),
                         player_health,
                     ));
                     self.lobby.insert(addr, player);
@@ -114,7 +113,7 @@ impl Game {
                     println!("Player {} spawned.", self.lobby.len());
 
                     let msg = ServerMessage::PlayerConnected {
-                        position: player_pos,
+                        position: spawn_pos,
                         hp: player_health.points,
                     };
                     self.server
@@ -173,7 +172,7 @@ impl Game {
                         return;
                     }
 
-                    if let Some(tile_center) = self.map.get_tile_center("base", tgt_pos.into()) {
+                    if let Some(tile_center) = self.map.get_tile_center("floor", tgt_pos.into()) {
                         let mut target_pos = self.world.get_mut::<TargetPosition>(*player).unwrap();
                         target_pos.vec = tile_center;
                     }
@@ -238,7 +237,7 @@ impl Game {
                     return;
                 }
 
-                if let Some(tile_center) = self.map.get_tile_center("base", target_pos.vec) {
+                if let Some(tile_center) = self.map.get_tile_center("floor", target_pos.vec) {
                     drop(pos);
 
                     let mut pos = self.world.get_mut::<Position>(entity).unwrap();
@@ -340,7 +339,7 @@ impl Game {
 
         for (killer, victim) in self.dead_entities.drain(..) {
             self.world.despawn(victim.into());
-            self.lobby.retain(|_, &mut entity| entity.id() != victim);
+            self.lobby.retain(|_, entity| entity.id() != victim);
 
             let msg = ServerMessage::EntityDied { killer, victim };
             self.server
