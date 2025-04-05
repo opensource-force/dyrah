@@ -539,7 +539,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "secs"
 version = "0.1.0"
-source = "git+https://github.com/wick3dr0se/secs#df3ecf4aec0c917f259f9a4c2802a4ebf3cf9e61"
+source = "git+https://github.com/wick3dr0se/secs#bee429a1eab886c4708ed5e08ef54b03519509fe"
 dependencies = [
  "elsa",
  "parking_lot",
