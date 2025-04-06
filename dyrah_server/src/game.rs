@@ -21,6 +21,7 @@ pub struct Game {
     server: Server<Transport>,
     lobby: HashMap<String, Entity>,
     world: World,
+    player_view: PlayerView,
     map: TiledMap,
     dead_entities: Vec<(u64, u64)>,
 }
@@ -28,11 +29,9 @@ pub struct Game {
 impl Game {
     pub fn new() -> Self {
         let transport = Transport::new("127.0.0.1:8080");
-        let mut world = World::default();
+        let world = World::default();
         let map = TiledMap::new("assets/map.json");
         let mut rng = rng();
-
-        world.add_resource(PlayerView::default());
 
         for _ in 0..300 {
             let pos = Vec2::new(
@@ -60,6 +59,7 @@ impl Game {
             server: Server::new(transport, ServerConfig::default()),
             lobby: HashMap::new(),
             world,
+            player_view: Default::default(),
             map,
             dead_entities: Vec::new(),
         }
@@ -185,8 +185,6 @@ impl Game {
         self.server.poll();
         self.handle_events();
 
-        let mut player_view = self.world.get_resource_mut::<PlayerView>().unwrap();
-
         self.world
             .query::<(&mut Player, &mut Position, &TargetPosition)>(
                 |entity, (_, pos, target_pos)| {
@@ -196,7 +194,7 @@ impl Game {
                         return;
                     }
 
-                    player_view.position = pos.vec;
+                    self.player_view.position = pos.vec;
 
                     let msg = ServerMessage::PlayerMoved {
                         id: entity.id(),
@@ -232,7 +230,8 @@ impl Game {
                     dir * TILE_SIZE
                 };
 
-                if self.is_position_blocked(target_pos.vec) || !player_view.contains(target_pos.vec)
+                if self.is_position_blocked(target_pos.vec)
+                    || !self.player_view.contains(target_pos.vec)
                 {
                     return;
                 }
@@ -249,8 +248,6 @@ impl Game {
                 }
             },
         );
-
-        drop(player_view);
 
         if !crea_moves.is_empty() {
             let msg = ServerMessage::CreatureBatchMoved(crea_moves);

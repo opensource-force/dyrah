@@ -1,4 +1,7 @@
-use std::process::exit;
+use std::{
+    process::exit,
+    sync::{Arc, RwLock},
+};
 
 use bincode::{deserialize, serialize};
 use macroquad::{
@@ -21,123 +24,126 @@ use crate::{
     map::TiledMap,
 };
 
-fn render_system(world: &World) {
-    let map = world.get_resource::<TiledMap>().unwrap();
-    let player_tex = world.get_resource::<PlayerTexture>().unwrap();
-    let crea_tex = world.get_resource::<CreatureTexture>().unwrap();
+fn render_system(
+    map: TiledMap,
+    player_tex: PlayerTexture,
+    crea_tex: CreatureTexture,
+    damages: Arc<RwLock<Damages>>,
+) -> impl Fn(&World) {
+    move |world| {
+        map.draw_tiles();
 
-    map.draw_tiles();
+        world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
+            |_, (_, spr, pos, target_pos, health)| {
+                draw_rectangle_lines(
+                    target_pos.vec.x,
+                    target_pos.vec.y,
+                    TILE_SIZE,
+                    TILE_SIZE,
+                    2.,
+                    GRAY,
+                );
+                draw_texture_ex(
+                    &crea_tex.0,
+                    pos.vec.x,
+                    pos.vec.y,
+                    WHITE,
+                    DrawTextureParams {
+                        source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
+                        ..Default::default()
+                    },
+                );
 
-    world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
-        |_, (_, spr, pos, target_pos, health)| {
+                draw_rectangle(
+                    pos.vec.x,
+                    pos.vec.y,
+                    health.points / 100. * TILE_SIZE,
+                    4.,
+                    RED,
+                );
+            },
+        );
+
+        world.query::<(
+            &mut Player,
+            &mut Sprite,
+            &Position,
+            &TargetPosition,
+            &Health,
+        )>(|_, (_, spr, pos, target_pos, health)| {
             draw_rectangle_lines(
                 target_pos.vec.x,
                 target_pos.vec.y,
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,
-                GRAY,
+                WHITE,
             );
+
             draw_texture_ex(
-                &crea_tex.0,
-                pos.vec.x,
-                pos.vec.y,
+                &player_tex.0,
+                pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
+                pos.vec.y - TILE_SIZE,
                 WHITE,
                 DrawTextureParams {
-                    source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
+                    source: Some(spr.animation.frame().source_rect),
+                    dest_size: Some(spr.animation.frame().dest_size),
+                    flip_x: spr.is_flipped.x,
+                    flip_y: spr.is_flipped.y,
                     ..Default::default()
                 },
             );
 
             draw_rectangle(
                 pos.vec.x,
-                pos.vec.y,
+                pos.vec.y - TILE_SIZE,
                 health.points / 100. * TILE_SIZE,
                 4.,
-                RED,
+                GREEN,
             );
-        },
-    );
+        });
 
-    world.query::<(
-        &mut Player,
-        &mut Sprite,
-        &Position,
-        &TargetPosition,
-        &Health,
-    )>(|_, (_, spr, pos, target_pos, health)| {
-        draw_rectangle_lines(
-            target_pos.vec.x,
-            target_pos.vec.y,
-            TILE_SIZE,
-            TILE_SIZE,
-            2.,
-            WHITE,
-        );
+        for num in &damages.read().unwrap().numbers {
+            if let Some(pos) = world.get::<Position>(num.origin.into()) {
+                draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
 
-        draw_texture_ex(
-            &player_tex.0,
-            pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
-            pos.vec.y - TILE_SIZE,
-            WHITE,
-            DrawTextureParams {
-                source: Some(spr.animation.frame().source_rect),
-                dest_size: Some(spr.animation.frame().dest_size),
-                flip_x: spr.is_flipped.x,
-                flip_y: spr.is_flipped.y,
-                ..Default::default()
-            },
-        );
-
-        draw_rectangle(
-            pos.vec.x,
-            pos.vec.y - TILE_SIZE,
-            health.points / 100. * TILE_SIZE,
-            4.,
-            GREEN,
-        );
-    });
-
-    let damages = world.get_resource::<Damages>().unwrap();
-    for num in &damages.numbers {
-        if let Some(pos) = world.get::<Position>(num.origin.into()) {
-            draw_rectangle_lines(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE, 2., BLACK);
-
-            draw_text(
-                &num.value.to_string(),
-                num.position.x,
-                num.position.y,
-                16.,
-                RED,
-            );
+                draw_text(
+                    &num.value.to_string(),
+                    num.position.x,
+                    num.position.y,
+                    16.,
+                    RED,
+                );
+            }
         }
     }
 }
 
-fn movement_system(world: &World) {
-    let mut cam = world.get_resource_mut::<Camera>().unwrap();
-    let frame_time = get_frame_time();
+fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
+    move |world| {
+        let frame_time = get_frame_time();
 
-    world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
-        |_, (_, spr, pos, target_pos)| {
-            pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
+        world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
+            |_, (_, spr, pos, target_pos)| {
+                pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
 
-            if target_pos.vec.x < pos.vec.x {
-                spr.is_flipped.x = true;
-            } else if target_pos.vec.x > pos.vec.x {
-                spr.is_flipped.x = false;
-            }
+                if target_pos.vec.x < pos.vec.x {
+                    spr.is_flipped.x = true;
+                } else if target_pos.vec.x > pos.vec.x {
+                    spr.is_flipped.x = false;
+                }
 
-            spr.animation.update();
+                spr.animation.update();
+                let mut cam = cam.write().unwrap();
+                cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
+                cam.set();
+            },
+        );
 
-            cam.attach_sized(pos.vec.x, pos.vec.y, screen_width(), screen_height());
-            cam.set();
-        },
-    );
-
-    world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-        pos.vec = pos.vec.lerp(target_pos.vec, 3. * frame_time);
-    });
+        world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
+            pos.vec = pos.vec.lerp(target_pos.vec, 3. * frame_time);
+        });
+    }
 }
 
 pub struct Game {
@@ -145,29 +151,38 @@ pub struct Game {
     world: World,
     player: Option<Entity>,
     last_input_time: f64,
+    damages: Arc<RwLock<Damages>>,
+    camera: Arc<RwLock<Camera>>,
 }
 
 impl Game {
     pub async fn new() -> Self {
         let transport = Transport::new("127.0.0.1:0");
-        let mut world = World::default();
+        let world = World::default();
 
         set_default_filter_mode(FilterMode::Nearest);
         let player_tex = load_texture("assets/wizard.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
-        world.add_resource(TiledMap::new("assets/map.json").await);
-        world.add_resource(Camera::default());
-        world.add_resource(PlayerTexture(player_tex));
-        world.add_resource(CreatureTexture(monsters_tex));
-        world.add_resource(Damages::default());
+        let tilemap = TiledMap::new("assets/map.json").await;
+        let camera = Arc::new(RwLock::new(Camera::default()));
+        let player_texture = PlayerTexture(player_tex);
+        let creature_texture = CreatureTexture(monsters_tex);
+        let damages = Arc::new(RwLock::new(Damages::default()));
 
-        world.add_system(render_system);
-        world.add_system(movement_system);
+        world.add_system(render_system(
+            tilemap,
+            player_texture,
+            creature_texture,
+            damages.clone(),
+        ));
+        world.add_system(movement_system(camera.clone()));
 
         Self {
             client: Client::new(transport, "127.0.0.1:8080"),
             world,
+            damages,
+            camera,
             player: None,
             last_input_time: 0.,
         }
@@ -253,7 +268,7 @@ impl Game {
                     });
 
                 if let Some(mut health) = self.world.get_mut::<Health>(defender.into()) {
-                    let mut damages = self.world.get_resource_mut::<Damages>().unwrap();
+                    let mut damages = self.damages.write().unwrap();
                     let pos = self.world.get::<Position>(defender.into()).unwrap();
 
                     damages.numbers.push(Damage {
@@ -290,8 +305,12 @@ impl Game {
 
         root_ui().label(None, &format!("FPS: {}", get_fps()));
 
-        let cam = self.world.get_resource::<Camera>().unwrap();
-        let mouse_world_pos = cam.inner.screen_to_world(mouse_position().into());
+        let mouse_world_pos = self
+            .camera
+            .read()
+            .unwrap()
+            .inner
+            .screen_to_world(mouse_position().into());
         let current_time = get_time();
 
         let left = is_key_down(KeyCode::A) || is_key_down(KeyCode::Left);
@@ -339,15 +358,11 @@ impl Game {
             }
         }
 
-        self.world
-            .get_resource_mut::<Damages>()
-            .unwrap()
-            .numbers
-            .retain_mut(|num| {
-                num.position.y -= get_frame_time() * 20.;
-                num.lifetime -= get_frame_time();
-                num.lifetime > 0.
-            });
+        self.damages.write().unwrap().numbers.retain_mut(|num| {
+            num.position.y -= get_frame_time() * 20.;
+            num.lifetime -= get_frame_time();
+            num.lifetime > 0.
+        });
     }
 
     pub async fn run(&mut self) {
