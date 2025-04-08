@@ -21,11 +21,11 @@ use dyrah_shared::{
 
 use crate::{
     Creature, CreatureTexture, Damage, Damages, Player, PlayerTexture, Sprite, camera::Camera,
-    map::TiledMap,
+    map::Map,
 };
 
 fn render_system(
-    map: TiledMap,
+    map: Map,
     player_tex: PlayerTexture,
     crea_tex: CreatureTexture,
     damages: Arc<RwLock<Damages>>,
@@ -71,6 +71,18 @@ fn render_system(
             &TargetPosition,
             &Health,
         )>(|_, (_, spr, pos, target_pos, health)| {
+            if let Some(path) = &target_pos.path {
+                for window in path.windows(2) {
+                    let start = window[0];
+                    let end = window[1];
+                    draw_line(start.x, start.y, end.x, end.y, 3.0, ORANGE);
+                }
+
+                for point in path {
+                    draw_circle_lines(point.x, point.y, 4.0, 2.0, BLACK);
+                }
+            }
+
             draw_rectangle_lines(
                 target_pos.vec.x,
                 target_pos.vec.y,
@@ -164,14 +176,14 @@ impl Game {
         let player_tex = load_texture("assets/wizard.png").await.unwrap();
         let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
-        let tilemap = TiledMap::new("assets/map.json").await;
-        let camera = Arc::new(RwLock::new(Camera::default()));
+        let map = Map::new("assets/map.json").await;
+        let camera: Arc<RwLock<Camera>> = Arc::new(RwLock::new(Camera::default()));
         let player_texture = PlayerTexture(player_tex);
         let creature_texture = CreatureTexture(monsters_tex);
         let damages = Arc::new(RwLock::new(Damages::default()));
 
         world.add_system(render_system(
-            tilemap,
+            map,
             player_texture,
             creature_texture,
             damages.clone(),
@@ -207,8 +219,8 @@ impl Game {
                     self.world.spawn((
                         Creature,
                         Sprite::from_frame(gen_range(0, 1) as f32, gen_range(0, 7) as f32),
-                        Position::from(pos),
-                        TargetPosition::from(pos),
+                        Position::new(pos),
+                        TargetPosition::new(pos),
                         Health { points: hp },
                     ));
                 }
@@ -240,8 +252,8 @@ impl Game {
                         is_attacking: false,
                     },
                     Sprite::new(player_anims),
-                    Position::from(position),
-                    TargetPosition::from(position),
+                    Position::new(position),
+                    TargetPosition::new(position),
                     Health { points: hp },
                 ));
 
@@ -249,9 +261,10 @@ impl Game {
                     self.player = Some(player);
                 }
             }
-            ServerMessage::PlayerMoved { id, position } => {
+            ServerMessage::PlayerMoved { id, position, path } => {
                 if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
                     target_pos.vec = position;
+                    target_pos.path = path;
                 }
             }
             ServerMessage::EntityDamaged {

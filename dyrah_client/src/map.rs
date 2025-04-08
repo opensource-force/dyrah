@@ -1,22 +1,22 @@
 use std::collections::HashMap;
 
-use dyrah_shared::map::TiledMap as Inner;
+use dyrah_shared::map::TiledMap;
 use macroquad::{
     color::WHITE,
     math::Rect,
     texture::{DrawTextureParams, Texture2D, draw_texture_ex, load_texture},
 };
-pub struct TiledMap {
-    inner: Inner,
+pub struct Map {
+    pub tiled: TiledMap,
     textures: HashMap<u32, Texture2D>,
 }
 
-impl TiledMap {
+impl Map {
     pub async fn new(path: &str) -> Self {
-        let tiled_map = Inner::new(path);
+        let tiled = TiledMap::new(path);
         let mut textures = HashMap::new();
 
-        for tileset in &tiled_map.tilesets {
+        for tileset in &tiled.tilesets {
             if let Some(path) = &tileset.image {
                 let texture = load_texture(&format!("assets/{}", path)).await.unwrap();
                 textures.insert(tileset.firstgid, texture);
@@ -25,16 +25,13 @@ impl TiledMap {
             }
         }
 
-        Self {
-            inner: tiled_map,
-            textures,
-        }
+        Self { tiled, textures }
     }
 
     pub fn draw_tile_layer(&self, layer_name: &str) {
-        let layer = self.inner.get_layer(layer_name).unwrap();
+        let layer = self.tiled.get_layer(layer_name).unwrap();
         let (layer_w, layer_h) = (layer.width.unwrap(), layer.height.unwrap());
-        let (tile_w, tile_h) = (self.inner.tilewidth, self.inner.tileheight);
+        let (tile_w, tile_h) = (self.tiled.tilewidth, self.tiled.tileheight);
 
         for y in 0..layer_h {
             for x in 0..layer_w {
@@ -46,7 +43,7 @@ impl TiledMap {
                     }
 
                     if let Some(tileset) = self
-                        .inner
+                        .tiled
                         .tilesets
                         .iter()
                         .filter(|set| tile_id >= set.firstgid)
@@ -84,7 +81,7 @@ impl TiledMap {
     }
 
     pub fn draw_tiles(&self) {
-        for layer in &self.inner.layers {
+        for layer in &self.tiled.layers {
             if !layer.visible || layer.data.is_none() {
                 continue;
             }

@@ -1,7 +1,8 @@
-pub use glam::Vec2;
 use serde::{Deserialize, Serialize};
 
 pub mod map;
+
+pub use glam::{Vec2, vec2};
 
 pub const TILE_SIZE: f32 = 32.;
 pub const TILE_OFFSET: f32 = 16.;
@@ -13,27 +14,20 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { vec: Vec2 { x, y } }
-    }
-
-    pub fn from(vec: Vec2) -> Self {
+    pub fn new(vec: Vec2) -> Self {
         Self { vec }
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Copy)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct TargetPosition {
     pub vec: Vec2,
+    pub path: Option<Vec<Vec2>>,
 }
 
 impl TargetPosition {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { vec: Vec2 { x, y } }
-    }
-
-    pub fn from(vec: Vec2) -> Self {
-        Self { vec }
+    pub fn new(vec: Vec2) -> Self {
+        Self { vec, path: None }
     }
 }
 
@@ -53,6 +47,7 @@ pub enum ServerMessage {
     PlayerMoved {
         id: u64,
         position: Vec2,
+        path: Option<Vec<Vec2>>,
     },
     EntityDamaged {
         attacker: u64,

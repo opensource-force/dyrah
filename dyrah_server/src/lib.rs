@@ -3,17 +3,39 @@ use std::time::Instant;
 use dyrah_shared::{TILE_SIZE, Vec2};
 
 pub mod game;
+pub mod map;
 
 pub struct Player {
     pub attacking: Option<u64>,
     pub last_attack: Instant,
+    pub last_move: Instant,
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            attacking: None,
+            last_attack: Instant::now(),
+            last_move: Instant::now(),
+        }
+    }
 }
 
 pub struct Collider;
 pub struct Creature {
     pub following: Option<u64>,
-    pub last_move: Instant,
     pub last_attack: Instant,
+    pub last_move: Instant,
+}
+
+impl Default for Creature {
+    fn default() -> Self {
+        Self {
+            following: None,
+            last_attack: Instant::now(),
+            last_move: Instant::now(),
+        }
+    }
 }
 
 pub struct PlayerView {
