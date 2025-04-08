@@ -3,7 +3,7 @@ use std::fs::read_to_string;
 use serde::Deserialize;
 use serde_json::from_str;
 
-use crate::{Vec2, vec2};
+use crate::{TILE_OFFSET, Vec2, vec2};
 
 #[derive(Deserialize, Debug)]
 pub struct TiledObject {
@@ -78,8 +78,10 @@ impl TiledMap {
 
     pub fn tile_to_world(&self, (x, y): (usize, usize)) -> Vec2 {
         vec2(
-            (x * self.tilewidth as usize) as f32 + self.tilewidth as f32 / 2.0,
-            (y * self.tileheight as usize) as f32 + self.tileheight as f32 / 2.0,
+            ((x * self.tilewidth as usize) as f32 + self.tilewidth as f32 / 2.0).floor()
+                - TILE_OFFSET,
+            ((y * self.tileheight as usize) as f32 + self.tileheight as f32 / 2.0).floor()
+                - TILE_OFFSET,
         )
     }
 

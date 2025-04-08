@@ -6,7 +6,7 @@ use std::{
 
 use bincode::{deserialize, serialize};
 use dyrah_shared::{
-    ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition, Vec2,
+    ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition, Vec2, vec2,
 };
 use rand::{Rng, random_range, rng};
 use secs::{Entity, World};
@@ -30,11 +30,13 @@ impl Game {
     pub fn new() -> Self {
         let transport = Transport::new("127.0.0.1:8080");
         let world = World::default();
-        let map = Map::new("assets/map.json", "colliders");
+        let mut map = Map::new("assets/map.json");
         let mut rng = rng();
 
+        map.create_pathfinding_grid("colliders");
+
         for _ in 0..300 {
-            let pos = Vec2::new(
+            let pos = vec2(
                 rng.random_range(0..map.tiled.width) as f32 * TILE_SIZE,
                 rng.random_range(0..map.tiled.height) as f32 * TILE_SIZE,
             );
@@ -154,12 +156,11 @@ impl Game {
                         if let Some(path) = self.map.find_path(pos.vec, target_pos) {
                             let mut target_pos =
                                 self.world.get_mut::<TargetPosition>(*player).unwrap();
-                            target_pos.path = Some(path.clone());
 
-                            if let Some(next_pos) = target_pos.path.as_ref().and_then(|p| p.get(1))
-                            {
-                                target_pos.vec = *next_pos;
-                            }
+                            target_pos.path = Some(path);
+
+                            let next_pos = target_pos.path.as_mut().unwrap().remove(0);
+                            target_pos.vec = next_pos;
                         }
                     } else {
                         let dir = input.to_direction();
@@ -252,7 +253,7 @@ impl Game {
                     target_pos.vec + (tgt_pos.vec - pos.vec).signum() * TILE_SIZE
                 } else {
                     let mut rng = rng();
-                    let dir = Vec2::new(
+                    let dir = vec2(
                         rng.random_range(-1..=1) as f32,
                         rng.random_range(-1..=1) as f32,
                     );

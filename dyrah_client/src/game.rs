@@ -16,7 +16,8 @@ use wrym::{
 };
 
 use dyrah_shared::{
-    ClientInput, ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition,
+    ClientInput, ClientMessage, Health, Position, ServerMessage, TILE_OFFSET, TILE_SIZE,
+    TargetPosition,
 };
 
 use crate::{
@@ -33,87 +34,52 @@ fn render_system(
     move |world| {
         map.draw_tiles();
 
-        world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
-            |_, (_, spr, pos, target_pos, health)| {
-                draw_rectangle_lines(
-                    target_pos.vec.x,
-                    target_pos.vec.y,
-                    TILE_SIZE,
-                    TILE_SIZE,
-                    2.,
-                    GRAY,
-                );
-                draw_texture_ex(
-                    &crea_tex.0,
-                    pos.vec.x,
-                    pos.vec.y,
-                    WHITE,
-                    DrawTextureParams {
-                        source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
-                        ..Default::default()
-                    },
-                );
-
-                draw_rectangle(
-                    pos.vec.x,
-                    pos.vec.y,
-                    health.points / 100. * TILE_SIZE,
-                    4.,
-                    RED,
-                );
-            },
-        );
-
-        world.query::<(
-            &mut Player,
-            &mut Sprite,
-            &Position,
-            &TargetPosition,
-            &Health,
-        )>(|_, (_, spr, pos, target_pos, health)| {
-            if let Some(path) = &target_pos.path {
-                for window in path.windows(2) {
-                    let start = window[0];
-                    let end = window[1];
-                    draw_line(start.x, start.y, end.x, end.y, 3.0, ORANGE);
-                }
-
-                for point in path {
-                    draw_circle_lines(point.x, point.y, 4.0, 2.0, BLACK);
-                }
-            }
-
-            draw_rectangle_lines(
-                target_pos.vec.x,
-                target_pos.vec.y,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.,
-                WHITE,
-            );
-
+        world.query::<(&Creature, &Sprite, &Position, &Health)>(|_, (_, spr, pos, health)| {
             draw_texture_ex(
-                &player_tex.0,
-                pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
-                pos.vec.y - TILE_SIZE,
+                &crea_tex.0,
+                pos.vec.x,
+                pos.vec.y,
                 WHITE,
                 DrawTextureParams {
-                    source: Some(spr.animation.frame().source_rect),
-                    dest_size: Some(spr.animation.frame().dest_size),
-                    flip_x: spr.is_flipped.x,
-                    flip_y: spr.is_flipped.y,
+                    source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
                     ..Default::default()
                 },
             );
 
             draw_rectangle(
                 pos.vec.x,
-                pos.vec.y - TILE_SIZE,
+                pos.vec.y,
                 health.points / 100. * TILE_SIZE,
                 4.,
-                GREEN,
+                RED,
             );
         });
+
+        world.query::<(&mut Player, &mut Sprite, &Position, &Health)>(
+            |_, (_, spr, pos, health)| {
+                draw_texture_ex(
+                    &player_tex.0,
+                    pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
+                    pos.vec.y - TILE_SIZE,
+                    WHITE,
+                    DrawTextureParams {
+                        source: Some(spr.animation.frame().source_rect),
+                        dest_size: Some(spr.animation.frame().dest_size),
+                        flip_x: spr.is_flipped.x,
+                        flip_y: spr.is_flipped.y,
+                        ..Default::default()
+                    },
+                );
+
+                draw_rectangle(
+                    pos.vec.x,
+                    pos.vec.y - TILE_SIZE,
+                    health.points / 100. * TILE_SIZE,
+                    4.,
+                    GREEN,
+                );
+            },
+        );
 
         for num in &damages.read().unwrap().numbers {
             if let Some(pos) = world.get::<Position>(num.origin.into()) {
@@ -158,6 +124,78 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
     }
 }
 
+fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
+    move |world| {
+        root_ui().label(None, &format!("FPS: {}", get_fps()));
+
+        let mouse_screen_pos = mouse_position().into();
+        let mouse_pos = cam
+            .read()
+            .unwrap()
+            .inner
+            .screen_to_world(mouse_screen_pos)
+            .floor();
+        let mouse_tile_pos = mouse_pos / TILE_SIZE;
+
+        draw_rectangle_lines(
+            mouse_tile_pos.x,
+            mouse_tile_pos.y,
+            TILE_SIZE,
+            TILE_SIZE,
+            2.0,
+            ORANGE,
+        );
+
+        root_ui().label(
+            None,
+            &format!(
+                "Mouse: Screen({}, {}) World({}, {}) Tile({}, {})",
+                mouse_screen_pos.x,
+                mouse_screen_pos.y,
+                mouse_pos.x,
+                mouse_pos.y,
+                mouse_tile_pos.x,
+                mouse_tile_pos.y
+            ),
+        );
+
+        world.query::<(&Player, &Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
+            let screen_pos = cam.read().unwrap().inner.world_to_screen(pos.vec);
+            let tile_pos = pos.vec / TILE_SIZE;
+
+            root_ui().label(
+                None,
+                &format!(
+                    "Player Position: Screen({}, {}) World({}, {}) Tile({}, {})",
+                    screen_pos.x, screen_pos.y, pos.vec.x, pos.vec.y, tile_pos.x, tile_pos.y
+                ),
+            );
+
+            if let Some(path) = &target_pos.path {
+                for window in path.windows(2) {
+                    let start = window[0] + TILE_OFFSET;
+                    let end = window[1] + TILE_OFFSET;
+                    draw_line(start.x, start.y, end.x, end.y, 1.0, BLACK);
+                    draw_circle_lines(end.x, end.y, 2.0, 2.0, PURPLE);
+                }
+
+                for point in path {
+                    draw_rectangle_lines(point.x, point.y, TILE_SIZE, TILE_SIZE, 2.0, PURPLE);
+                }
+            }
+
+            draw_rectangle_lines(
+                target_pos.vec.x,
+                target_pos.vec.y,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.,
+                WHITE,
+            );
+        });
+    }
+}
+
 pub struct Game {
     client: Client<Transport>,
     world: World,
@@ -189,6 +227,7 @@ impl Game {
             damages.clone(),
         ));
         world.add_system(movement_system(camera.clone()));
+        world.add_system(debug_system(camera.clone()));
 
         Self {
             client: Client::new(transport, "127.0.0.1:8080"),
@@ -316,16 +355,13 @@ impl Game {
         self.client.poll();
         self.handle_events();
 
-        root_ui().label(None, &format!("FPS: {}", get_fps()));
-
+        let current_time = get_time();
         let mouse_world_pos = self
             .camera
             .read()
             .unwrap()
             .inner
             .screen_to_world(mouse_position().into());
-        let current_time = get_time();
-
         let left = is_key_down(KeyCode::A) || is_key_down(KeyCode::Left);
         let up = is_key_down(KeyCode::W) || is_key_down(KeyCode::Up);
         let right = is_key_down(KeyCode::D) || is_key_down(KeyCode::Right);
@@ -352,7 +388,6 @@ impl Game {
         } else {
             None
         };
-
         if left || up || down || right || mouse_target_pos.is_some() || mouse_target.is_some() {
             if current_time - self.last_input_time >= 0.2 {
                 self.last_input_time = current_time;

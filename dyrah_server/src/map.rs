@@ -7,14 +7,11 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn new(path: &str, layer_name: &str) -> Self {
-        let mut map = Self {
+    pub fn new(path: &str) -> Self {
+        Self {
             tiled: TiledMap::new(path),
             path_grid: Vec::new(),
-        };
-
-        map.path_grid = map.create_pathfinding_grid(layer_name);
-        map
+        }
     }
 
     pub fn is_walkable(&self, layer_name: &str, vec: Vec2) -> bool {
@@ -72,31 +69,7 @@ impl Map {
             .map(|o| vec2(o.x, o.y))
     }
 
-    pub fn find_path(&self, start: Vec2, end: Vec2) -> Option<Vec<Vec2>> {
-        let start = self.tiled.world_to_tile(start)?;
-        let end = self.tiled.world_to_tile(end)?;
-        let (start_x, start_y) = (start.x as usize, start.y as usize);
-        let (end_x, end_y) = (end.x as usize, end.y as usize);
-
-        if start_x >= self.path_grid.len()
-            || start_y >= self.path_grid[0].len()
-            || end_x >= self.path_grid.len()
-            || end_y >= self.path_grid[0].len()
-        {
-            return None;
-        }
-
-        let result = astar(
-            &(start_x, start_y),
-            |&(x, y)| self.get_walkable_successors(x, y),
-            |&(x, y)| self.manhattan_distance((x, y), (end_x, end_y)),
-            |&(x, y)| x == end_x && y == end_y,
-        );
-
-        result.map(|(path, _)| path.iter().map(|p| self.tiled.tile_to_world(*p)).collect())
-    }
-
-    fn create_pathfinding_grid(&self, collision_layer: &str) -> Vec<Vec<bool>> {
+    pub fn create_pathfinding_grid(&mut self, collision_layer: &str) {
         let mut grid = vec![vec![true; self.tiled.height as usize]; self.tiled.width as usize];
 
         if let Some(layer) = self.tiled.get_layer(collision_layer) {
@@ -111,7 +84,8 @@ impl Map {
                 }
             }
         }
-        grid
+
+        self.path_grid = grid;
     }
 
     fn get_walkable_successors(&self, x: usize, y: usize) -> Vec<((usize, usize), u32)> {
@@ -134,5 +108,29 @@ impl Map {
 
     fn manhattan_distance(&self, a: (usize, usize), b: (usize, usize)) -> u32 {
         ((a.0 as i32 - b.0 as i32).abs() + (a.1 as i32 - b.1 as i32).abs()) as u32
+    }
+
+    pub fn find_path(&self, start: Vec2, end: Vec2) -> Option<Vec<Vec2>> {
+        let start = self.tiled.world_to_tile(start)?;
+        let end = self.tiled.world_to_tile(end)?;
+        let (start_x, start_y) = (start.x as usize, start.y as usize);
+        let (end_x, end_y) = (end.x as usize, end.y as usize);
+
+        if start_x >= self.path_grid.len()
+            || start_y >= self.path_grid[0].len()
+            || end_x >= self.path_grid.len()
+            || end_y >= self.path_grid[0].len()
+        {
+            return None;
+        }
+
+        let result = astar(
+            &(start_x, start_y),
+            |&(x, y)| self.get_walkable_successors(x, y),
+            |&(x, y)| self.manhattan_distance((x, y), (end_x, end_y)),
+            |&(x, y)| x == end_x && y == end_y,
+        );
+
+        result.map(|(path, _)| path.iter().map(|p| self.tiled.tile_to_world(*p)).collect())
     }
 }
