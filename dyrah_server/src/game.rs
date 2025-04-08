@@ -215,26 +215,26 @@ impl Game {
 
                 let pos = self.world.get::<Position>(entity).unwrap();
 
-                target_pos.vec += if let Some(tgt) = crea_state.following {
+                let tgt_pos = if let Some(tgt) = crea_state.following {
                     if !self.world.is_attached::<Position>(tgt.into()) {
                         return;
                     }
                     let tgt_pos = self.world.get::<Position>(tgt.into()).unwrap();
-                    (tgt_pos.vec - pos.vec).signum() * TILE_SIZE
+                    target_pos.vec + (tgt_pos.vec - pos.vec).signum() * TILE_SIZE
                 } else {
                     let mut rng = rng();
                     let dir = Vec2::new(
                         rng.random_range(-1..=1) as f32,
                         rng.random_range(-1..=1) as f32,
                     );
-                    dir * TILE_SIZE
+                    target_pos.vec + dir * TILE_SIZE
                 };
 
-                if self.is_position_blocked(target_pos.vec)
-                    || !self.player_view.contains(target_pos.vec)
-                {
+                if self.is_position_blocked(tgt_pos) || !self.player_view.contains(tgt_pos) {
                     return;
                 }
+
+                target_pos.vec = tgt_pos;
 
                 if let Some(tile_center) = self.map.get_tile_center("floor", target_pos.vec) {
                     drop(pos);
@@ -301,7 +301,7 @@ impl Game {
 
                     let player_pos = self.world.get::<Position>(*player).unwrap();
 
-                    if pos.vec.distance(player_pos.vec) > TILE_SIZE * 5. {
+                    if pos.vec.distance(player_pos.vec) > TILE_SIZE * 8. {
                         crea_state.following = None;
                         continue;
                     }

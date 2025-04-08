@@ -128,11 +128,12 @@ impl TiledMap {
         None
     }
 
+    pub fn get_object(&self, layer_name: &str, name: &str) -> Option<&TiledObject> {
+        self.get_layer(layer_name)
+            .and_then(|l| l.objects.as_ref().unwrap().iter().find(|o| o.name == name))
+    }
+
     pub fn get_spawn(&self, name: &str) -> Option<Vec2> {
-        self.layers
-            .iter()
-            .find(|l| l.name == "spawns")
-            .and_then(|layer| layer.objects.as_ref()?.iter().find(|obj| obj.name == name))
-            .map(|obj| vec2(obj.x, obj.y))
+        self.get_object("spawns", name).map(|o| vec2(o.x, o.y))
     }
 }
