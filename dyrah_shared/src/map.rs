@@ -68,20 +68,16 @@ impl TiledMap {
             return None;
         }
 
-        let tile_pos = vec2(
+        Some(vec2(
             vec.x / self.tilewidth as f32,
             vec.y / self.tileheight as f32,
-        );
-
-        Some(tile_pos)
+        ))
     }
 
-    pub fn tile_to_world(&self, (x, y): (usize, usize)) -> Vec2 {
+    pub fn tile_to_world(&self, x: usize, y: usize) -> Vec2 {
         vec2(
-            ((x * self.tilewidth as usize) as f32 + self.tilewidth as f32 / 2.0).floor()
-                - TILE_OFFSET,
-            ((y * self.tileheight as usize) as f32 + self.tileheight as f32 / 2.0).floor()
-                - TILE_OFFSET,
+            ((x as u32 * self.tilewidth) + self.tilewidth / 2) as f32 - TILE_OFFSET,
+            ((y as u32 * self.tileheight) + self.tileheight / 2) as f32 - TILE_OFFSET,
         )
     }
 

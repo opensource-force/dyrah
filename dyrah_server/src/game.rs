@@ -30,10 +30,8 @@ impl Game {
     pub fn new() -> Self {
         let transport = Transport::new("127.0.0.1:8080");
         let world = World::default();
-        let mut map = Map::new("assets/map.json");
+        let map = Map::new("assets/map.json");
         let mut rng = rng();
-
-        map.create_pathfinding_grid("colliders");
 
         for _ in 0..300 {
             let pos = vec2(
@@ -151,9 +149,10 @@ impl Game {
                     }
 
                     let pos = self.world.get::<Position>(*player).unwrap();
+                    let is_walkable = |p| !self.is_position_blocked(p);
 
                     if let Some(target_pos) = input.mouse_target_pos {
-                        if let Some(path) = self.map.find_path(pos.vec, target_pos) {
+                        if let Some(path) = self.map.find_path(pos.vec, target_pos, is_walkable) {
                             let mut target_pos =
                                 self.world.get_mut::<TargetPosition>(*player).unwrap();
 
