@@ -158,9 +158,7 @@ impl Game {
                                 self.world.get_mut::<TargetPosition>(*player).unwrap();
 
                             tgt_pos.path = Some(path);
-
-                            let next_pos = tgt_pos.path.as_mut().unwrap().remove(0);
-                            tgt_pos.vec = next_pos;
+                            tgt_pos.vec = tgt_pos.path.as_mut().unwrap().remove(0);
                         }
                     } else {
                         let dir = input.to_direction();
@@ -191,49 +189,38 @@ impl Game {
         self.handle_events();
 
         self.world
-            .query::<(&mut Player, &mut Position, &mut TargetPosition)>(
-                |player, (state, pos, tgt_pos)| {
-                    if let Some(path) = &mut tgt_pos.path {
-                        let now = Instant::now();
-                        if now - state.last_move < Duration::from_millis(200) {
+            .query::<(&mut Player, &mut TargetPosition)>(|player, (state, tgt_pos)| {
+                let now = Instant::now();
+                if now - state.last_move < Duration::from_millis(200) {
+                    return;
+                }
+
+                let mut pos = self.world.get_mut::<Position>(player).unwrap();
+
+                if let Some(path) = &mut tgt_pos.path {
+                    if pos.vec.distance(tgt_pos.vec) < TILE_SIZE * 0.5 {
+                        if !path.is_empty() {
+                            tgt_pos.vec = path.remove(0);
+                        } else {
+                            tgt_pos.path = None;
                             return;
                         }
-
-                        if pos.vec.distance(tgt_pos.vec) < TILE_SIZE {
-                            path.remove(0);
-
-                            if let Some(next_pos) = path.first() {
-                                tgt_pos.vec = *next_pos;
-                            } else {
-                                tgt_pos.path = None;
-                                return;
-                            }
-                        }
-
-                        let direction = (tgt_pos.vec - pos.vec).normalize();
-                        pos.vec += direction * TILE_SIZE;
-                        state.last_move = now;
-
-                        let msg = ServerMessage::PlayerMoved {
-                            id: player.id(),
-                            position: pos.vec,
-                            path: Some(path.clone()),
-                        };
-                        self.server.broadcast(&serialize(&msg).unwrap());
-                    } else if pos.vec.distance(tgt_pos.vec) > 1.0 {
-                        let direction = (tgt_pos.vec - pos.vec).signum();
-                        pos.vec += direction * TILE_SIZE;
-
-                        let msg = ServerMessage::PlayerMoved {
-                            id: player.id(),
-                            position: pos.vec,
-                            path: None,
-                        };
-                        self.server.broadcast(&serialize(&msg).unwrap());
                     }
-                },
-            );
+                }
 
+                let direction = (tgt_pos.vec - pos.vec).normalize_or_zero();
+                pos.vec += direction * TILE_SIZE;
+                state.last_move = now;
+
+                self.server.broadcast(
+                    &serialize(&ServerMessage::PlayerMoved {
+                        id: player.id(),
+                        position: pos.vec,
+                        path: tgt_pos.path.clone(),
+                    })
+                    .unwrap(),
+                );
+            });
         let mut crea_moves = Vec::new();
 
         self.world
