@@ -102,12 +102,12 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
         let frame_time = get_frame_time();
 
         world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
-            |_, (_, spr, pos, target_pos)| {
-                pos.vec = pos.vec.lerp(target_pos.vec, 5. * frame_time);
+            |_, (_, spr, pos, tgt_pos)| {
+                pos.vec = pos.vec.lerp(tgt_pos.vec, 5. * frame_time);
 
-                if target_pos.vec.x < pos.vec.x {
+                if tgt_pos.vec.x < pos.vec.x {
                     spr.is_flipped.x = true;
-                } else if target_pos.vec.x > pos.vec.x {
+                } else if tgt_pos.vec.x > pos.vec.x {
                     spr.is_flipped.x = false;
                 }
 
@@ -118,8 +118,8 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
             },
         );
 
-        world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
-            pos.vec = pos.vec.lerp(target_pos.vec, 3. * frame_time);
+        world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
+            pos.vec = pos.vec.lerp(tgt_pos.vec, 3. * frame_time);
         });
     }
 }
@@ -159,7 +159,7 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
             ),
         );
 
-        world.query::<(&Player, &Position, &TargetPosition)>(|_, (_, pos, target_pos)| {
+        world.query::<(&Player, &Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
             let screen_pos = cam.read().unwrap().inner.world_to_screen(pos.vec);
             let tile_pos = pos.vec / TILE_SIZE;
 
@@ -171,7 +171,7 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
                 ),
             );
 
-            if let Some(path) = &target_pos.path {
+            if let Some(path) = &tgt_pos.path {
                 for window in path.windows(2) {
                     let start = window[0] + TILE_OFFSET;
                     let end = window[1] + TILE_OFFSET;
@@ -185,12 +185,23 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
             }
 
             draw_rectangle_lines(
-                target_pos.vec.x,
-                target_pos.vec.y,
+                tgt_pos.vec.x,
+                tgt_pos.vec.y,
                 TILE_SIZE,
                 TILE_SIZE,
                 2.,
                 WHITE,
+            );
+        });
+
+        world.query::<(&Creature, &TargetPosition)>(|_, (_, tgt_pos)| {
+            draw_rectangle_lines(
+                tgt_pos.vec.x,
+                tgt_pos.vec.y,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.0,
+                GRAY,
             );
         });
     }
@@ -199,10 +210,10 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
 pub struct Game {
     client: Client<Transport>,
     world: World,
+    camera: Arc<RwLock<Camera>>,
     player: Option<Entity>,
     last_input_time: f64,
     damages: Arc<RwLock<Damages>>,
-    camera: Arc<RwLock<Camera>>,
 }
 
 impl Game {
@@ -212,18 +223,16 @@ impl Game {
 
         set_default_filter_mode(FilterMode::Nearest);
         let player_tex = load_texture("assets/wizard.png").await.unwrap();
-        let monsters_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
+        let crea_tex = load_texture("assets/32rogues/monsters.png").await.unwrap();
 
         let map = Map::new("assets/map.json").await;
         let camera: Arc<RwLock<Camera>> = Arc::new(RwLock::new(Camera::default()));
-        let player_texture = PlayerTexture(player_tex);
-        let creature_texture = CreatureTexture(monsters_tex);
         let damages = Arc::new(RwLock::new(Damages::default()));
 
         world.add_system(render_system(
             map,
-            player_texture,
-            creature_texture,
+            PlayerTexture(player_tex),
+            CreatureTexture(crea_tex),
             damages.clone(),
         ));
         world.add_system(movement_system(camera.clone()));
@@ -232,10 +241,10 @@ impl Game {
         Self {
             client: Client::new(transport, "127.0.0.1:8080"),
             world,
-            damages,
             camera,
             player: None,
             last_input_time: 0.,
+            damages,
         }
     }
 
@@ -266,8 +275,8 @@ impl Game {
             }
             ServerMessage::CreatureBatchMoved(crea_moves) => {
                 for (id, pos) in crea_moves {
-                    if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                        target_pos.vec = pos;
+                    if let Some(mut tgt_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
+                        tgt_pos.vec = pos;
                     }
                 }
             }
@@ -301,9 +310,9 @@ impl Game {
                 }
             }
             ServerMessage::PlayerMoved { id, position, path } => {
-                if let Some(mut target_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
-                    target_pos.vec = position;
-                    target_pos.path = path;
+                if let Some(mut tgt_pos) = self.world.get_mut::<TargetPosition>(id.into()) {
+                    tgt_pos.vec = position;
+                    tgt_pos.path = path;
                 }
             }
             ServerMessage::EntityDamaged {
@@ -375,11 +384,11 @@ impl Game {
             let mut target = None;
 
             self.world
-                .query::<(&Creature, &Position)>(|entity, (_, pos)| {
+                .query::<(&Creature, &Position)>(|crea, (_, pos)| {
                     if Rect::new(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE)
                         .contains(mouse_world_pos)
                     {
-                        target = Some(entity.id());
+                        target = Some(crea.id());
                         return;
                     }
                 });

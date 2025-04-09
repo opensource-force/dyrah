@@ -43,10 +43,10 @@ pub struct PlayerView {
     radius: f32,
 }
 
-impl Default for PlayerView {
-    fn default() -> Self {
+impl PlayerView {
+    fn new(pos: Vec2) -> Self {
         Self {
-            position: Vec2::default(),
+            position: pos,
             radius: TILE_SIZE * 20.,
         }
     }
