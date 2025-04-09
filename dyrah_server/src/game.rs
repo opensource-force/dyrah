@@ -164,7 +164,7 @@ impl Game {
                         let dir = input.to_direction();
                         let next_pos = pos.vec + dir * TILE_SIZE;
 
-                        if !self.is_position_blocked(next_pos) {
+                        if is_walkable(next_pos) {
                             if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
                                 let mut tgt_pos =
                                     self.world.get_mut::<TargetPosition>(*player).unwrap();
@@ -195,20 +195,32 @@ impl Game {
                     return;
                 }
 
-                let mut pos = self.world.get_mut::<Position>(player).unwrap();
+                let pos = self.world.get::<Position>(player).unwrap();
+
+                if pos.vec.distance(tgt_pos.vec) > TILE_SIZE {
+                    return;
+                }
 
                 if let Some(path) = &mut tgt_pos.path {
-                    if pos.vec.distance(tgt_pos.vec) < TILE_SIZE * 0.5 {
-                        if !path.is_empty() {
-                            tgt_pos.vec = path.remove(0);
+                    if !path.is_empty() {
+                        let next_pos = path.remove(0);
+                        if !self.is_position_blocked(next_pos) {
+                            tgt_pos.vec = next_pos;
                         } else {
                             tgt_pos.path = None;
-                            return;
                         }
+                    } else {
+                        tgt_pos.path = None;
+                        return;
                     }
                 }
 
                 let direction = (tgt_pos.vec - pos.vec).normalize_or_zero();
+
+                drop(pos);
+
+                let mut pos = self.world.get_mut::<Position>(player).unwrap();
+
                 pos.vec += direction * TILE_SIZE;
                 state.last_move = now;
 
