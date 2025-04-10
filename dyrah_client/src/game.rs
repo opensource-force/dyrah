@@ -34,52 +34,76 @@ fn render_system(
     move |world| {
         map.draw_tiles();
 
-        world.query::<(&Creature, &Sprite, &Position, &Health)>(|_, (_, spr, pos, health)| {
-            draw_texture_ex(
-                &crea_tex.0,
-                pos.vec.x,
-                pos.vec.y,
-                WHITE,
-                DrawTextureParams {
-                    source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
-                    ..Default::default()
-                },
-            );
-
-            draw_rectangle(
-                pos.vec.x,
-                pos.vec.y,
-                health.points / 100. * TILE_SIZE,
-                4.,
-                RED,
-            );
-        });
-
-        world.query::<(&mut Player, &mut Sprite, &Position, &Health)>(
-            |_, (_, spr, pos, health)| {
+        world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
+            |_, (_, spr, pos, tgt_pos, health)| {
                 draw_texture_ex(
-                    &player_tex.0,
-                    pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
-                    pos.vec.y - TILE_SIZE,
+                    &crea_tex.0,
+                    pos.vec.x,
+                    pos.vec.y,
                     WHITE,
                     DrawTextureParams {
-                        source: Some(spr.animation.frame().source_rect),
-                        dest_size: Some(spr.animation.frame().dest_size),
-                        flip_x: spr.is_flipped.x,
-                        flip_y: spr.is_flipped.y,
+                        source: Some(Rect::new(spr.frame.0, spr.frame.1, TILE_SIZE, TILE_SIZE)),
                         ..Default::default()
                     },
                 );
 
                 draw_rectangle(
                     pos.vec.x,
-                    pos.vec.y - TILE_SIZE,
+                    pos.vec.y,
                     health.points / 100. * TILE_SIZE,
                     4.,
-                    GREEN,
+                    RED,
+                );
+
+                draw_rectangle_lines(
+                    tgt_pos.vec.x,
+                    tgt_pos.vec.y,
+                    TILE_SIZE,
+                    TILE_SIZE,
+                    2.0,
+                    WHITE,
                 );
             },
         );
+
+        world.query::<(
+            &mut Player,
+            &mut Sprite,
+            &Position,
+            &TargetPosition,
+            &Health,
+        )>(|_, (_, spr, pos, tgt_pos, health)| {
+            draw_texture_ex(
+                &player_tex.0,
+                pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
+                pos.vec.y - TILE_SIZE,
+                WHITE,
+                DrawTextureParams {
+                    source: Some(spr.animation.frame().source_rect),
+                    dest_size: Some(spr.animation.frame().dest_size),
+                    flip_x: spr.is_flipped.x,
+                    flip_y: spr.is_flipped.y,
+                    ..Default::default()
+                },
+            );
+
+            draw_rectangle(
+                pos.vec.x,
+                pos.vec.y - TILE_SIZE,
+                health.points / 100. * TILE_SIZE,
+                4.,
+                GREEN,
+            );
+
+            draw_rectangle_lines(
+                tgt_pos.vec.x,
+                tgt_pos.vec.y,
+                TILE_SIZE,
+                TILE_SIZE,
+                2.,
+                WHITE,
+            );
+        });
 
         for num in &damages.read().unwrap().numbers {
             if let Some(pos) = world.get::<Position>(num.origin.into()) {
@@ -103,7 +127,7 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
 
         world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
             |_, (_, spr, pos, tgt_pos)| {
-                pos.vec = pos.vec.lerp(tgt_pos.vec, 5. * frame_time);
+                pos.vec = pos.vec.move_towards(tgt_pos.vec, 200.0 * frame_time);
 
                 if tgt_pos.vec.x < pos.vec.x {
                     spr.is_flipped.x = true;
@@ -119,7 +143,7 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
         );
 
         world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
-            pos.vec = pos.vec.lerp(tgt_pos.vec, 3. * frame_time);
+            pos.vec = pos.vec.move_towards(tgt_pos.vec, 150.0 * frame_time);
         });
     }
 }
@@ -129,17 +153,13 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
         root_ui().label(None, &format!("FPS: {}", get_fps()));
 
         let mouse_screen_pos = mouse_position().into();
-        let mouse_pos = cam
-            .read()
-            .unwrap()
-            .inner
-            .screen_to_world(mouse_screen_pos)
-            .floor();
-        let mouse_tile_pos = mouse_pos / TILE_SIZE;
+        let mouse_world_pos = cam.read().unwrap().inner.screen_to_world(mouse_screen_pos);
+        let mouse_tile_pos = (mouse_world_pos / TILE_SIZE).floor();
+        let mouse_tile_world_pos = mouse_tile_pos * TILE_SIZE;
 
         draw_rectangle_lines(
-            mouse_tile_pos.x,
-            mouse_tile_pos.y,
+            mouse_tile_world_pos.x,
+            mouse_tile_world_pos.y,
             TILE_SIZE,
             TILE_SIZE,
             2.0,
@@ -152,8 +172,8 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
                 "Mouse: Screen({}, {}) World({}, {}) Tile({}, {})",
                 mouse_screen_pos.x,
                 mouse_screen_pos.y,
-                mouse_pos.x,
-                mouse_pos.y,
+                mouse_world_pos.x,
+                mouse_world_pos.y,
                 mouse_tile_pos.x,
                 mouse_tile_pos.y
             ),
@@ -161,15 +181,7 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
 
         world.query::<(&Player, &Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
             let screen_pos = cam.read().unwrap().inner.world_to_screen(pos.vec);
-            let tile_pos = pos.vec / TILE_SIZE;
-
-            root_ui().label(
-                None,
-                &format!(
-                    "Player Position: Screen({}, {}) World({}, {}) Tile({}, {})",
-                    screen_pos.x, screen_pos.y, pos.vec.x, pos.vec.y, tile_pos.x, tile_pos.y
-                ),
-            );
+            let tile_pos = (pos.vec / TILE_SIZE).floor();
 
             if let Some(path) = &tgt_pos.path {
                 for window in path.windows(2) {
@@ -184,24 +196,12 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
                 }
             }
 
-            draw_rectangle_lines(
-                tgt_pos.vec.x,
-                tgt_pos.vec.y,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.,
-                WHITE,
-            );
-        });
-
-        world.query::<(&Creature, &TargetPosition)>(|_, (_, tgt_pos)| {
-            draw_rectangle_lines(
-                tgt_pos.vec.x,
-                tgt_pos.vec.y,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.0,
-                GRAY,
+            root_ui().label(
+                None,
+                &format!(
+                    "Player Position: Screen({}, {}) World({}, {}) Tile({}, {})",
+                    screen_pos.x, screen_pos.y, pos.vec.x, pos.vec.y, tile_pos.x, tile_pos.y
+                ),
             );
         });
     }

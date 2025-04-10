@@ -1,12 +1,14 @@
 use std::{
     collections::HashMap,
+    sync::{Arc, RwLock},
     thread,
     time::{Duration, Instant},
 };
 
 use bincode::{deserialize, serialize};
 use dyrah_shared::{
-    ClientMessage, Health, Position, ServerMessage, TILE_SIZE, TargetPosition, Vec2, vec2,
+    ClientMessage, Health, Position, ServerMessage, TILE_OFFSET, TILE_SIZE, TargetPosition, Vec2,
+    vec2,
 };
 use rand::{Rng, random_range, rng};
 use secs::{Entity, World};
@@ -21,7 +23,7 @@ pub struct Game {
     server: Server<Transport>,
     lobby: HashMap<String, Entity>,
     world: World,
-    player_view: PlayerView,
+    player_view: Arc<RwLock<PlayerView>>,
     map: Map,
     dead_entities: Vec<(u64, u64)>,
 }
@@ -33,7 +35,7 @@ impl Game {
         let map = Map::new("assets/map.json");
         let mut rng = rng();
 
-        for _ in 0..300 {
+        for _ in 0..299 {
             let pos = vec2(
                 rng.random_range(0..map.tiled.width) as f32 * TILE_SIZE,
                 rng.random_range(0..map.tiled.height) as f32 * TILE_SIZE,
@@ -54,7 +56,9 @@ impl Game {
             server: Server::new(transport, ServerConfig::default()),
             lobby: HashMap::new(),
             world,
-            player_view: PlayerView::new(map.get_spawn("player").unwrap()),
+            player_view: Arc::new(RwLock::new(PlayerView::new(
+                map.get_spawn("player").unwrap(),
+            ))),
             map,
             dead_entities: Vec::new(),
         }
@@ -144,41 +148,35 @@ impl Game {
         match msg {
             ClientMessage::PlayerUpdate { input } => {
                 if let Some(player) = self.lobby.get(addr) {
-                    if !self.world.is_attached::<Position>(*player) {
-                        return;
-                    }
+                    self.world
+                        .query::<(&mut Player, &Position, &mut TargetPosition)>(
+                            |p, (state, pos, tgt_pos)| {
+                                if p == *player {
+                                    let is_walkable = |p| !self.is_position_blocked(p);
 
-                    let pos = self.world.get::<Position>(*player).unwrap();
+                                    if let Some(next_pos) = input.mouse_target_pos {
+                                        if let Some(path) =
+                                            self.map.find_path(pos.vec, next_pos, is_walkable)
+                                        {
+                                            tgt_pos.path = Some(path);
+                                            tgt_pos.vec = tgt_pos.path.as_mut().unwrap().remove(0);
+                                        }
+                                    } else {
+                                        let dir = input.to_direction();
+                                        let next_pos = pos.vec + dir * TILE_SIZE;
 
-                    let is_walkable = |p| !self.is_position_blocked(p);
+                                        if is_walkable(next_pos) {
+                                            tgt_pos.vec = next_pos;
+                                            tgt_pos.path = None;
+                                        }
+                                    }
 
-                    if let Some(tgt_pos) = input.mouse_target_pos {
-                        if let Some(path) = self.map.find_path(pos.vec, tgt_pos, is_walkable) {
-                            let mut tgt_pos =
-                                self.world.get_mut::<TargetPosition>(*player).unwrap();
-
-                            tgt_pos.path = Some(path);
-                            tgt_pos.vec = tgt_pos.path.as_mut().unwrap().remove(0);
-                        }
-                    } else {
-                        let dir = input.to_direction();
-                        let next_pos = pos.vec + dir * TILE_SIZE;
-
-                        if is_walkable(next_pos) {
-                            if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
-                                let mut tgt_pos =
-                                    self.world.get_mut::<TargetPosition>(*player).unwrap();
-
-                                tgt_pos.vec = tile_center;
-                                tgt_pos.path = None;
-                            }
-                        }
-                    }
-
-                    if let Some(tgt) = input.mouse_target {
-                        let mut state = self.world.get_mut::<Player>(*player).unwrap();
-                        state.attacking = Some(tgt);
-                    }
+                                    if let Some(tgt) = input.mouse_target {
+                                        state.attacking = Some(tgt);
+                                    }
+                                }
+                            },
+                        );
                 }
             }
         }
@@ -197,87 +195,104 @@ impl Game {
 
                 let pos = self.world.get::<Position>(player).unwrap();
 
-                if pos.vec.distance(tgt_pos.vec) > TILE_SIZE {
-                    return;
-                }
+                if pos.vec.distance(tgt_pos.vec) <= TILE_SIZE {
+                    if let Some(path) = &mut tgt_pos.path {
+                        if !path.is_empty() {
+                            let is_walkable = |p| !self.is_position_blocked(p);
+                            let next_pos = path[0];
 
-                if let Some(path) = &mut tgt_pos.path {
-                    if !path.is_empty() {
-                        let next_pos = path.remove(0);
-                        if !self.is_position_blocked(next_pos) {
-                            tgt_pos.vec = next_pos;
+                            if is_walkable(next_pos) {
+                                tgt_pos.vec = path.remove(0);
+                            } else {
+                                if let Some(dest) = path.last().copied() {
+                                    if let Some(new_path) =
+                                        self.map.find_path(pos.vec, dest, is_walkable)
+                                    {
+                                        *path = new_path;
+                                        if !path.is_empty() {
+                                            tgt_pos.vec = path.remove(0);
+                                        }
+                                    } else {
+                                        tgt_pos.path = None;
+                                        return;
+                                    }
+                                }
+                            }
                         } else {
                             tgt_pos.path = None;
+                            return;
                         }
-                    } else {
-                        tgt_pos.path = None;
-                        return;
                     }
                 }
 
-                let direction = (tgt_pos.vec - pos.vec).normalize_or_zero();
+                if pos.vec.distance(tgt_pos.vec) > 1.0 {
+                    let next_pos =
+                        pos.vec + (tgt_pos.vec - pos.vec).normalize_or_zero() * TILE_SIZE;
 
-                drop(pos);
+                    if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
+                        drop(pos);
+                        let mut pos = self.world.get_mut::<Position>(player).unwrap();
+                        pos.vec = tile_center;
 
-                let mut pos = self.world.get_mut::<Position>(player).unwrap();
+                        state.last_move = now;
+                        self.player_view.write().unwrap().position = pos.vec;
 
-                pos.vec += direction * TILE_SIZE;
-                state.last_move = now;
-
-                self.server.broadcast(
-                    &serialize(&ServerMessage::PlayerMoved {
-                        id: player.id(),
-                        position: pos.vec,
-                        path: tgt_pos.path.clone(),
-                    })
-                    .unwrap(),
-                );
+                        self.server.broadcast(
+                            &serialize(&ServerMessage::PlayerMoved {
+                                id: player.id(),
+                                position: pos.vec,
+                                path: tgt_pos.path.clone(),
+                            })
+                            .unwrap(),
+                        );
+                    }
+                }
             });
+
         let mut crea_moves = Vec::new();
 
-        self.world
-            .query::<(&mut Creature, &mut TargetPosition)>(|crea, (state, tgt_pos)| {
-                let now = Instant::now();
-                if now - state.last_move < Duration::from_secs(random_range(2..=4)) {
+        self.world.query::<(&mut Creature,)>(|crea, (state,)| {
+            let now = Instant::now();
+            if now - state.last_move < Duration::from_secs(random_range(2..=4)) {
+                return;
+            }
+
+            let pos = self.world.get::<Position>(crea).unwrap();
+
+            let next_pos = if let Some(tgt) = state.following {
+                if !self.world.is_attached::<Position>(tgt.into()) {
                     return;
                 }
 
-                let pos = self.world.get::<Position>(crea).unwrap();
+                let tgt_pos = self.world.get::<Position>(tgt.into()).unwrap();
+                pos.vec + (tgt_pos.vec - pos.vec).normalize_or_zero() * TILE_SIZE
+            } else {
+                let mut rng = rng();
+                let dir = vec2(
+                    rng.random_range(-1..=1) as f32,
+                    rng.random_range(-1..=1) as f32,
+                );
 
-                let next_pos = if let Some(tgt) = state.following {
-                    if !self.world.is_attached::<Position>(tgt.into()) {
-                        return;
-                    }
+                pos.vec + dir * TILE_SIZE
+            };
 
-                    let next_pos = self.world.get::<Position>(tgt.into()).unwrap();
-                    tgt_pos.vec + (next_pos.vec - pos.vec).signum() * TILE_SIZE
-                } else {
-                    let mut rng = rng();
-                    let dir = vec2(
-                        rng.random_range(-1..=1) as f32,
-                        rng.random_range(-1..=1) as f32,
-                    );
+            if self.is_position_blocked(next_pos)
+                || !self.player_view.read().unwrap().contains(next_pos)
+            {
+                return;
+            }
 
-                    tgt_pos.vec + dir * TILE_SIZE
-                };
+            if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
+                drop(pos);
 
-                if self.is_position_blocked(next_pos) || !self.player_view.contains(next_pos) {
-                    return;
-                }
+                let mut pos = self.world.get_mut::<Position>(crea).unwrap();
+                pos.vec = tile_center;
 
-                tgt_pos.vec = next_pos;
+                state.last_move = now;
 
-                if let Some(tile_center) = self.map.get_tile_center("floor", tgt_pos.vec) {
-                    drop(pos);
-
-                    let mut pos = self.world.get_mut::<Position>(crea).unwrap();
-                    pos.vec = tile_center;
-
-                    state.last_move = now;
-
-                    crea_moves.push((crea.id(), pos.vec));
-                }
-            });
+                crea_moves.push((crea.id(), pos.vec));
+            }
+        });
 
         if !crea_moves.is_empty() {
             let msg = ServerMessage::CreatureBatchMoved(crea_moves);
@@ -330,13 +345,13 @@ impl Game {
 
                     let player_pos = self.world.get::<Position>(*player).unwrap();
 
-                    if pos.vec.distance(player_pos.vec) > TILE_SIZE * 8. {
+                    if pos.vec.distance(player_pos.vec) > TILE_SIZE * 10.0 {
                         state.following = None;
                         continue;
                     }
                     state.following = Some(player.id());
 
-                    if pos.vec.distance(player_pos.vec) > TILE_SIZE {
+                    if pos.vec.distance(player_pos.vec) > TILE_SIZE + TILE_OFFSET {
                         continue;
                     }
 
