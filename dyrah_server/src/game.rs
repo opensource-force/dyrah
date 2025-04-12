@@ -225,56 +225,60 @@ impl Game {
                     }
                 }
 
-                if pos.vec.distance(tgt_pos.vec) > 1.0 {
-                    let next_pos =
-                        pos.vec + (tgt_pos.vec - pos.vec).normalize_or_zero() * TILE_SIZE;
+                if pos.vec.distance(tgt_pos.vec) < 1.0 {
+                    return;
+                }
+                let dir = (tgt_pos.vec - pos.vec).normalize_or_zero();
+                if dir.x != 0.0 && dir.y != 0.0 {
+                    return;
+                }
+                let next_pos = pos.vec + dir * TILE_SIZE;
 
-                    if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
-                        drop(pos);
-                        let mut pos = self.world.get_mut::<Position>(player).unwrap();
-                        pos.vec = tile_center;
+                if let Some(tile_center) = self.map.get_tile_center("floor", next_pos) {
+                    drop(pos);
+                    let mut pos = self.world.get_mut::<Position>(player).unwrap();
+                    pos.vec = tile_center;
 
-                        state.last_move = now;
-                        self.player_view.write().unwrap().position = pos.vec;
+                    state.last_move = now;
+                    self.player_view.write().unwrap().position = pos.vec;
 
-                        self.server.broadcast(
-                            &serialize(&ServerMessage::PlayerMoved {
-                                id: player.id(),
-                                position: pos.vec,
-                                path: tgt_pos.path.clone(),
-                            })
-                            .unwrap(),
-                        );
-                    }
+                    self.server.broadcast(
+                        &serialize(&ServerMessage::PlayerMoved {
+                            id: player.id(),
+                            position: pos.vec,
+                            path: tgt_pos.path.clone(),
+                        })
+                        .unwrap(),
+                    );
                 }
             });
 
         let mut crea_moves = Vec::new();
-
         self.world.query::<(&mut Creature,)>(|crea, (state,)| {
             let now = Instant::now();
-            if now - state.last_move < Duration::from_secs(random_range(2..=4)) {
+
+            let delay = if state.following.is_some() {
+                Duration::from_millis(400)
+            } else {
+                Duration::from_secs(random_range(1..=4))
+            };
+
+            if now - state.last_move < delay {
                 return;
             }
 
             let pos = self.world.get::<Position>(crea).unwrap();
-
-            let next_pos = if let Some(tgt) = state.following {
-                if !self.world.is_attached::<Position>(tgt.into()) {
-                    return;
-                }
-
-                let tgt_pos = self.world.get::<Position>(tgt.into()).unwrap();
-                pos.vec + (tgt_pos.vec - pos.vec).normalize_or_zero() * TILE_SIZE
+            let dir = if let Some(tgt_id) = state.following {
+                let tgt = self.world.get::<Position>(tgt_id.into()).unwrap();
+                (tgt.vec - pos.vec).normalize_or_zero()
             } else {
                 let mut rng = rng();
-                let dir = vec2(
+                vec2(
                     rng.random_range(-1..=1) as f32,
                     rng.random_range(-1..=1) as f32,
-                );
-
-                pos.vec + dir * TILE_SIZE
+                )
             };
+            let next_pos = pos.vec + dir * TILE_SIZE;
 
             if self.is_position_blocked(next_pos)
                 || !self.player_view.read().unwrap().contains(next_pos)
@@ -310,7 +314,7 @@ impl Game {
                 }
 
                 let mut health = self.world.get_mut::<Health>(tgt.into()).unwrap();
-                health.points -= rng().random_range(5.0..20.);
+                health.points -= rng().random_range(5.0..20.0);
 
                 if health.points <= 0. {
                     state.attacking = None;
@@ -356,7 +360,7 @@ impl Game {
                     }
 
                     let mut player_health = self.world.get_mut::<Health>(*player).unwrap();
-                    player_health.points -= rng().random_range(2.0..5.);
+                    player_health.points -= rng().random_range(1.0..3.0);
 
                     if player_health.points <= 0. {
                         state.following = None;

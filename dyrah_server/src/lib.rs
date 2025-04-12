@@ -47,7 +47,7 @@ impl PlayerView {
     fn new(pos: Vec2) -> Self {
         Self {
             position: pos,
-            radius: TILE_SIZE * 20.,
+            radius: TILE_SIZE * 10.,
         }
     }
 }
