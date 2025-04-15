@@ -34,8 +34,13 @@ fn render_system(
     move |world| {
         map.draw_tiles();
 
-        world.query::<(&Creature, &Sprite, &Position, &TargetPosition, &Health)>(
-            |_, (_, spr, pos, tgt_pos, health)| {
+        world.query(
+            |_,
+             _: &Creature,
+             spr: &Sprite,
+             pos: &Position,
+             tgt_pos: &TargetPosition,
+             health: &Health| {
                 draw_texture_ex(
                     &crea_tex.0,
                     pos.vec.x,
@@ -66,44 +71,45 @@ fn render_system(
             },
         );
 
-        world.query::<(
-            &mut Player,
-            &mut Sprite,
-            &Position,
-            &TargetPosition,
-            &Health,
-        )>(|_, (_, spr, pos, tgt_pos, health)| {
-            draw_texture_ex(
-                &player_tex.0,
-                pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
-                pos.vec.y - TILE_SIZE,
-                WHITE,
-                DrawTextureParams {
-                    source: Some(spr.animation.frame().source_rect),
-                    dest_size: Some(spr.animation.frame().dest_size),
-                    flip_x: spr.is_flipped.x,
-                    flip_y: spr.is_flipped.y,
-                    ..Default::default()
-                },
-            );
+        world.query(
+            |_,
+             _: &Player,
+             spr: &mut Sprite,
+             pos: &Position,
+             tgt_pos: &TargetPosition,
+             health: &Health| {
+                draw_texture_ex(
+                    &player_tex.0,
+                    pos.vec.x - spr.is_flipped.x as i8 as f32 * TILE_SIZE,
+                    pos.vec.y - TILE_SIZE,
+                    WHITE,
+                    DrawTextureParams {
+                        source: Some(spr.animation.frame().source_rect),
+                        dest_size: Some(spr.animation.frame().dest_size),
+                        flip_x: spr.is_flipped.x,
+                        flip_y: spr.is_flipped.y,
+                        ..Default::default()
+                    },
+                );
 
-            draw_rectangle(
-                pos.vec.x,
-                pos.vec.y - TILE_SIZE,
-                health.points / 100. * TILE_SIZE,
-                4.,
-                GREEN,
-            );
+                draw_rectangle(
+                    pos.vec.x,
+                    pos.vec.y - TILE_SIZE,
+                    health.points / 100. * TILE_SIZE,
+                    4.,
+                    GREEN,
+                );
 
-            draw_rectangle_lines(
-                tgt_pos.vec.x,
-                tgt_pos.vec.y,
-                TILE_SIZE,
-                TILE_SIZE,
-                2.,
-                WHITE,
-            );
-        });
+                draw_rectangle_lines(
+                    tgt_pos.vec.x,
+                    tgt_pos.vec.y,
+                    TILE_SIZE,
+                    TILE_SIZE,
+                    2.,
+                    WHITE,
+                );
+            },
+        );
 
         for num in &damages.read().unwrap().numbers {
             if let Some(pos) = world.get::<Position>(num.origin.into()) {
@@ -125,8 +131,8 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
     move |world| {
         let frame_time = get_frame_time();
 
-        world.query::<(&Player, &mut Sprite, &mut Position, &TargetPosition)>(
-            |_, (_, spr, pos, tgt_pos)| {
+        world.query(
+            |_, _: &Player, spr: &mut Sprite, pos: &mut Position, tgt_pos: &TargetPosition| {
                 pos.vec = pos.vec.move_towards(tgt_pos.vec, 200.0 * frame_time);
 
                 if tgt_pos.vec.x < pos.vec.x {
@@ -142,9 +148,11 @@ fn movement_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
             },
         );
 
-        world.query::<(&Creature, &mut Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
-            pos.vec = pos.vec.move_towards(tgt_pos.vec, 150.0 * frame_time);
-        });
+        world.query(
+            |_, _: &Creature, pos: &mut Position, tgt_pos: &TargetPosition| {
+                pos.vec = pos.vec.move_towards(tgt_pos.vec, 150.0 * frame_time);
+            },
+        );
     }
 }
 
@@ -179,7 +187,7 @@ fn debug_system(cam: Arc<RwLock<Camera>>) -> impl Fn(&World) {
             ),
         );
 
-        world.query::<(&Player, &Position, &TargetPosition)>(|_, (_, pos, tgt_pos)| {
+        world.query(|_, _: &Player, pos: &Position, tgt_pos: &TargetPosition| {
             let screen_pos = cam.read().unwrap().inner.world_to_screen(pos.vec);
             let tile_pos = (pos.vec / TILE_SIZE).floor();
 
@@ -321,7 +329,7 @@ impl Game {
                 hp,
             } => {
                 self.world
-                    .query::<(&mut Player, &mut Sprite)>(|player, (state, spr)| {
+                    .query(|player: Entity, state: &mut Player, spr: &mut Sprite| {
                         if player.id() == attacker {
                             spr.animation.set_animation(1);
                             state.is_attacking = true;
@@ -350,7 +358,7 @@ impl Game {
                 }
 
                 self.world
-                    .query::<(&mut Player, &mut Sprite)>(|player, (state, spr)| {
+                    .query(|player: Entity, state: &mut Player, spr: &mut Sprite| {
                         if player.id() == killer {
                             spr.animation.set_animation(0);
                             state.is_attacking = false;
@@ -384,7 +392,7 @@ impl Game {
             let mut target = None;
 
             self.world
-                .query::<(&Creature, &Position)>(|crea, (_, pos)| {
+                .query(|crea: Entity, _: &Creature, pos: &Position| {
                     if Rect::new(pos.vec.x, pos.vec.y, TILE_SIZE, TILE_SIZE)
                         .contains(mouse_world_pos)
                     {

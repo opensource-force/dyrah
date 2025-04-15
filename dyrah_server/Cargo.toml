@@ -7,7 +7,7 @@ edition = "2024"
 bincode = "1.3.3"
 pathfinding = "4.14.0"
 rand = "0.9.0"
-secs = { git = "https://github.com/wick3dr0se/secs" }
+secs = { git = "https://github.com/wick3dr0se/secs", features = ["track_dead_entities"]}
 wrym = { git = "https://github.com/wick3dr0se/wrym", default-features = false, features = ["laminar"]}
 
 dyrah_shared = { path = "../dyrah_shared" }
