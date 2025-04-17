@@ -83,3 +83,22 @@ impl ClientInput {
 pub enum ClientMessage {
     PlayerUpdate { input: ClientInput },
 }
+
+#[derive(Debug, Clone)]
+pub enum GameEvent {
+    PlayerMoved {
+        id: u64,
+        position: Vec2,
+        path: Option<Vec<Vec2>>,
+    },
+    EntityDamaged {
+        attacker: u64,
+        defender: u64,
+        hp: f32,
+    },
+    CreatureBatchMoved(Vec<(u64, Vec2)>),
+    EntityDied {
+        killer: u64,
+        victim: u64,
+    },
+}

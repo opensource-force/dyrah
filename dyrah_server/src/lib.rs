@@ -4,23 +4,22 @@ use dyrah_shared::{TILE_SIZE, Vec2};
 
 pub mod game;
 pub mod map;
+mod systems;
 
 pub struct Player;
 pub struct Creature;
 pub struct Collider;
 
 pub struct State {
-    pub moving: Option<Vec2>,
     pub attacking: Option<u64>,
     pub following: Option<u64>,
     pub last_attack: Instant,
     pub last_move: Instant,
 }
 
-impl Default for State {
-    fn default() -> Self {
+impl State {
+    fn new() -> Self {
         Self {
-            moving: None,
             attacking: None,
             following: None,
             last_attack: Instant::now(),

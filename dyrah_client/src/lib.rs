@@ -8,6 +8,7 @@ use macroquad::{
 mod camera;
 pub mod game;
 mod map;
+mod systems;
 
 pub const SPRITE_SIZE: f32 = 64.;
 
