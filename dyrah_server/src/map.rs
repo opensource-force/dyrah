@@ -1,4 +1,4 @@
-use dyrah_shared::{Position, TILE_OFFSET, Vec2, map::TiledMap, vec2};
+use dyrah_shared::{Position, Vec2, map::TiledMap, vec2};
 use pathfinding::prelude::astar;
 use secs::World;
 
@@ -26,19 +26,20 @@ impl CollisionGrid {
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let world_pos = map.tiled.tile_to_world(x, y);
-                if !map.is_walkable("colliders", world_pos) {
-                    self.grid[y * self.width + x] = true;
+                if let Some((world_x, world_y)) = map.tiled.tile_to_world(x, y) {
+                    if !map.tiled.is_walkable("colliders", world_x, world_y) {
+                        self.grid[y * self.width + x] = true;
+                    }
                 }
             }
         }
 
         world.query(|_, _: &Collider, pos: &Position| {
-            if let Some(tile_pos) = map.tiled.world_to_tile(pos.vec) {
-                let (x, y) = (tile_pos.x as usize, tile_pos.y as usize);
-
-                if x < self.width && y < self.height {
-                    self.grid[y * self.width + x] = true;
+            if let Some((tile_x, tile_y)) =
+                map.tiled.world_to_tile(pos.vec.x as u32, pos.vec.y as u32)
+            {
+                if tile_x < self.width && tile_y < self.height {
+                    self.grid[tile_y * self.width + tile_x] = true;
                 }
             }
         });
@@ -64,59 +65,29 @@ impl Map {
         }
     }
 
-    pub fn is_walkable(&self, layer_name: &str, vec: Vec2) -> bool {
-        if let Some(layer) = self.tiled.get_layer(layer_name) {
-            if let Some(tile_pos) = self.tiled.world_to_tile(vec) {
-                let index = (tile_pos.y * layer.width.unwrap() as f32 + tile_pos.x) as usize;
-
-                return layer
-                    .data
-                    .as_ref()
-                    .and_then(|data| data.get(index))
-                    .map_or(false, |&tile| tile == 0);
-            }
-        }
-
-        false
-    }
-
-    pub fn get_tile(&self, layer_name: &str, vec: Vec2) -> Option<Vec2> {
-        let layer = self.tiled.get_layer(layer_name)?;
-
-        if let Some(tile_pos) = self.tiled.world_to_tile(vec) {
-            let index = (tile_pos.y * layer.width.unwrap() as f32 + tile_pos.x) as usize;
-
-            if layer
-                .data
-                .as_ref()
-                .and_then(|data| data.get(index))
-                .map_or(false, |&tile| tile != 0)
-            {
-                return Some(tile_pos);
-            }
-        }
-
-        None
-    }
-
-    pub fn get_tile_center(&self, layer_name: &str, vec: Vec2) -> Option<Vec2> {
-        if let Some(tile_pos) = self.get_tile(layer_name, vec) {
-            let center_x = tile_pos.x as u32 * self.tiled.tilewidth + (self.tiled.tilewidth / 2);
-            let center_y = tile_pos.y as u32 * self.tiled.tileheight + (self.tiled.tileheight / 2);
-
-            return Some(vec2(
-                center_x as f32 - TILE_OFFSET,
-                center_y as f32 - TILE_OFFSET,
-            ));
-        }
-
-        None
-    }
-
     pub fn get_spawn(&self, name: &str) -> Option<Vec2> {
         self.tiled
             .get_object("spawns", name)
             .map(|o| vec2(o.x, o.y))
+    }
+
+    pub fn is_walkable(&self, pos: Vec2, grid: &CollisionGrid) -> bool {
+        if let Some((tile_x, tile_y)) = self.tiled.world_to_tile(pos.x as u32, pos.y as u32) {
+            grid.is_walkable(tile_x, tile_y)
+        } else {
+            false
+        }
+    }
+
+    pub fn get_tile(&self, vec: Vec2, grid: &CollisionGrid) -> Option<Vec2> {
+        if !self.is_walkable(vec, grid) {
+            return None;
+        }
+
+        self.tiled
+            .get_tile("floor", vec.x as u32, vec.y as u32)
+            .and_then(|(tile_x, tile_y)| self.tiled.tile_to_world(tile_x, tile_y))
+            .map(|(x, y)| vec2(x as f32, y as f32))
     }
 
     fn manhattan_distance(&self, a: (usize, usize), b: (usize, usize)) -> u32 {
@@ -143,27 +114,23 @@ impl Map {
         successors
     }
 
-    pub fn find_path(
-        &self,
-        start: Vec2,
-        end: Vec2,
-        collision_grid: &CollisionGrid,
-    ) -> Option<Vec<Vec2>> {
-        let start_tile = self.tiled.world_to_tile(start)?;
-        let end_tile = self.tiled.world_to_tile(end)?;
-        let (start_x, start_y) = (start_tile.x as usize, start_tile.y as usize);
-        let (end_x, end_y) = (end_tile.x as usize, end_tile.y as usize);
+    pub fn find_path(&self, start: Vec2, end: Vec2, grid: &CollisionGrid) -> Option<Vec<Vec2>> {
+        let (start_x, start_y) = self.tiled.world_to_tile(start.x as u32, start.y as u32)?;
+        let (end_x, end_y) = self.tiled.world_to_tile(end.x as u32, end.y as u32)?;
 
         let result = astar(
             &(start_x, start_y),
-            |&(x, y)| self.get_walkable_successors(x, y, collision_grid),
+            |&(x, y)| self.get_walkable_successors(x, y, grid),
             |&(x, y)| self.manhattan_distance((x, y), (end_x, end_y)),
             |&(x, y)| x == end_x && y == end_y,
         );
 
         result.map(|(path, _)| {
             path.iter()
-                .map(|&(x, y)| self.tiled.tile_to_world(x, y))
+                .map(|&(x, y)| {
+                    let (x, y) = self.tiled.tile_to_world(x, y).unwrap();
+                    vec2(x as f32, y as f32)
+                })
                 .collect()
         })
     }

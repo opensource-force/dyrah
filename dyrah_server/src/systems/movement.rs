@@ -28,64 +28,59 @@ impl MovementSystem {
 
                     let pos = w.get::<Position>(player).unwrap();
 
-                    if pos.vec.distance(tgt_pos.vec) <= TILE_SIZE {
-                        if let Some(path) = &mut tgt_pos.path {
-                            if !path.is_empty() {
-                                let next_pos = path[0];
+                    if let Some(path) = &mut tgt_pos.path {
+                        if path.is_empty() {
+                            tgt_pos.path = None;
+                            return;
+                        }
 
-                                if let Some(tile_pos) = map.tiled.world_to_tile(next_pos) {
-                                    let x = tile_pos.x as usize;
-                                    let y = tile_pos.y as usize;
-
-                                    if grid.is_walkable(x, y) {
-                                        tgt_pos.vec = path.remove(0);
-                                    } else {
-                                        if let Some(dest) = path.last().copied() {
-                                            if let Some(new_path) =
-                                                map.find_path(pos.vec, dest, &grid)
-                                            {
-                                                *path = new_path;
-                                                if !path.is_empty() {
-                                                    tgt_pos.vec = path.remove(0);
-                                                }
-                                            } else {
-                                                tgt_pos.path = None;
-                                                return;
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
+                        let next_pos = path[0];
+                        if pos.vec.distance(next_pos) < 1.0 {
+                            path.remove(0);
+                            if path.is_empty() {
                                 tgt_pos.path = None;
                                 return;
                             }
+
+                            tgt_pos.vec = path[0];
+                            return;
                         }
+
+                        if !map.is_walkable(next_pos, grid) {
+                            if let Some(dest) = path.last().copied() {
+                                if let Some(new_path) = map.find_path(pos.vec, dest, grid) {
+                                    if !new_path.is_empty() {
+                                        *path = new_path;
+                                        tgt_pos.vec = path[0];
+                                    } else {
+                                        tgt_pos.path = None;
+                                    }
+                                } else {
+                                    tgt_pos.path = None;
+                                }
+                            }
+
+                            return;
+                        }
+
+                        tgt_pos.vec = next_pos;
                     }
 
-                    if pos.vec.distance(tgt_pos.vec) < 1.0 {
-                        return;
-                    }
+                    if pos.vec.distance(tgt_pos.vec) >= 1.0 {
+                        if let Some(tile) = map.get_tile(tgt_pos.vec, grid) {
+                            drop(pos);
+                            let mut pos = w.get_mut::<Position>(player).unwrap();
+                            pos.vec = tile;
 
-                    let dir = (tgt_pos.vec - pos.vec).normalize_or_zero();
-                    if dir.x != 0.0 && dir.y != 0.0 {
-                        return;
-                    }
+                            state.last_move = now;
+                            player_view.position = pos.vec;
 
-                    let next_pos = pos.vec + dir * TILE_SIZE;
-
-                    if let Some(tile_center) = map.get_tile_center("floor", next_pos) {
-                        drop(pos);
-                        let mut pos = w.get_mut::<Position>(player).unwrap();
-
-                        pos.vec = tile_center;
-                        state.last_move = now;
-                        player_view.position = pos.vec;
-
-                        events.push(GameEvent::PlayerMoved {
-                            id: player.id(),
-                            position: pos.vec,
-                            path: tgt_pos.path.clone(),
-                        });
+                            events.push(GameEvent::PlayerMoved {
+                                id: player.id(),
+                                position: pos.vec,
+                                path: tgt_pos.path.clone(),
+                            });
+                        }
                     }
                 },
             );
@@ -100,6 +95,8 @@ impl MovementSystem {
     ) -> impl FnMut(&World) {
         move |w| {
             let mut crea_moves = Vec::new();
+            let mut rng = rng();
+
             w.query(|crea, _: &Creature, state: &mut State| {
                 let now = Instant::now();
 
@@ -114,36 +111,29 @@ impl MovementSystem {
                 }
 
                 let pos = w.get::<Position>(crea).unwrap();
+
                 let dir = if let Some(tgt_id) = state.following {
                     let tgt = w.get::<Position>(tgt_id.into()).unwrap();
                     (tgt.vec - pos.vec).normalize_or_zero()
                 } else {
-                    let mut rng = rng();
                     vec2(
                         rng.random_range(-1..=1) as f32,
                         rng.random_range(-1..=1) as f32,
                     )
                 };
+
                 let next_pos = pos.vec + dir * TILE_SIZE;
 
-                if let Some(tile_pos) = map.tiled.world_to_tile(next_pos) {
-                    let x = tile_pos.x as usize;
-                    let y = tile_pos.y as usize;
+                if !player_view.contains(next_pos) {
+                    return;
+                }
 
-                    if !grid.is_walkable(x, y) || !player_view.contains(next_pos) {
-                        return;
-                    }
-
-                    if let Some(tile_center) = map.get_tile_center("floor", next_pos) {
-                        drop(pos);
-
-                        let mut pos = w.get_mut::<Position>(crea).unwrap();
-                        pos.vec = tile_center;
-
-                        state.last_move = now;
-
-                        crea_moves.push((crea.id(), pos.vec));
-                    }
+                if let Some(tile) = map.get_tile(next_pos, grid) {
+                    drop(pos);
+                    let mut pos = w.get_mut::<Position>(crea).unwrap();
+                    pos.vec = tile;
+                    state.last_move = now;
+                    crea_moves.push((crea.id(), pos.vec));
                 }
             });
 

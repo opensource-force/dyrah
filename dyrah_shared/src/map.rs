@@ -3,8 +3,6 @@ use std::fs::read_to_string;
 use serde::Deserialize;
 use serde_json::from_str;
 
-use crate::{TILE_OFFSET, Vec2, vec2};
-
 #[derive(Deserialize, Debug)]
 pub struct TiledObject {
     pub id: u32,
@@ -51,42 +49,79 @@ impl TiledMap {
         from_str(&content).expect("Failed to parse JSON map")
     }
 
-    fn within_bounds(&self, x: f32, y: f32) -> bool {
-        if x < 0.
-            || y < 0.
-            || x >= (self.width * self.tilewidth) as f32
-            || y >= (self.height * self.tileheight) as f32
-        {
-            return false;
-        }
-
-        true
-    }
-
-    pub fn world_to_tile(&self, vec: Vec2) -> Option<Vec2> {
-        if !self.within_bounds(vec.x, vec.y) {
-            return None;
-        }
-
-        Some(vec2(
-            vec.x / self.tilewidth as f32,
-            vec.y / self.tileheight as f32,
-        ))
-    }
-
-    pub fn tile_to_world(&self, x: usize, y: usize) -> Vec2 {
-        vec2(
-            ((x as u32 * self.tilewidth) + self.tilewidth / 2) as f32 - TILE_OFFSET,
-            ((y as u32 * self.tileheight) + self.tileheight / 2) as f32 - TILE_OFFSET,
-        )
-    }
-
     pub fn get_layer(&self, layer_name: &str) -> Option<&TiledLayer> {
         self.layers.iter().find(|l| l.name == layer_name)
     }
 
     pub fn get_object(&self, layer_name: &str, name: &str) -> Option<&TiledObject> {
         self.get_layer(layer_name)
-            .and_then(|l| l.objects.as_ref().unwrap().iter().find(|o| o.name == name))
+            .and_then(|l| l.objects.as_ref()?.iter().find(|o| o.name == name))
+    }
+
+    fn within_bounds(&self, x: u32, y: u32) -> bool {
+        if x >= self.width * self.tilewidth || y >= self.height * self.tileheight {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn is_walkable(&self, layer_name: &str, x: u32, y: u32) -> bool {
+        if let Some(layer) = self.get_layer(layer_name) {
+            if let Some((tile_x, tile_y)) = self.world_to_tile(x, y) {
+                let index = tile_y * layer.width.unwrap() as usize + tile_x;
+
+                return layer
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.get(index))
+                    .map_or(false, |&tile| tile == 0);
+            }
+        }
+
+        false
+    }
+
+    pub fn world_to_tile(&self, x: u32, y: u32) -> Option<(usize, usize)> {
+        if !self.within_bounds(x, y) {
+            return None;
+        }
+
+        Some((
+            (x / self.tilewidth) as usize,
+            (y / self.tileheight) as usize,
+        ))
+    }
+
+    pub fn tile_to_world(&self, x: usize, y: usize) -> Option<(u32, u32)> {
+        let (x, y) = (
+            ((x as u32 * self.tilewidth) + self.tilewidth / 2) - self.tilewidth / 2,
+            ((y as u32 * self.tileheight) + self.tileheight / 2) - self.tileheight / 2,
+        );
+
+        if !self.within_bounds(x, y) {
+            return None;
+        }
+
+        Some((x, y))
+    }
+
+    pub fn get_tile(&self, layer_name: &str, x: u32, y: u32) -> Option<(usize, usize)> {
+        let layer = self.get_layer(layer_name)?;
+
+        if let Some((tile_x, tile_y)) = self.world_to_tile(x, y) {
+            let index = tile_y * layer.width? as usize + tile_x;
+
+            if layer
+                .data
+                .as_ref()
+                .and_then(|data| data.get(index))
+                .map_or(false, |&tile| tile != 0)
+            {
+                return Some((tile_x, tile_y));
+            }
+        }
+
+        None
     }
 }

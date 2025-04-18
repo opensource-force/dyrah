@@ -31,15 +31,8 @@ impl InputSystem {
                 let dir = input.to_direction();
                 let next_pos = pos.vec + dir * TILE_SIZE;
 
-                if let Some(tile_pos) = map.tiled.world_to_tile(next_pos) {
-                    let x = tile_pos.x as usize;
-                    let y = tile_pos.y as usize;
-
-                    if grid.is_walkable(x, y) {
-                        tgt_pos.vec = next_pos;
-                        tgt_pos.path = None;
-                    }
-                }
+                tgt_pos.vec = next_pos;
+                tgt_pos.path = None;
             }
 
             if let Some(tgt) = input.mouse_target {
