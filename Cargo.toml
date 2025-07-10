@@ -1,6 +1,3 @@
 [workspace]
-members = [
-    "dyrah_server",
-    "dyrah_client",
-]
+members = ["dyrah_server", "dyrah_client", "dyrah_shared"]
 resolver = "2"

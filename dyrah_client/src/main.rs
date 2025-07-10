@@ -1,20 +1,20 @@
-use dyrah_client::game::Game;
-use macroquad::{miniquad::conf::Platform, window::Conf};
+mod components;
+mod game;
+mod sprite;
 
-fn _window_conf() -> Conf {
-    Conf {
-        window_title: "Dyrah".to_owned(),
-        platform: Platform {
-            swap_interval: Some(0),
-            ..Default::default()
-        },
-        ..Default::default()
-    }
-}
+use egor::app::App;
 
-#[macroquad::main("Dyrah")]
-async fn main() {
-    let mut game = Game::new().await;
+use crate::game::Game;
 
-    game.run().await;
+fn main() {
+    App::init(Game::new(), |game, ctx| {
+        ctx.set_title("Dyrah");
+
+        game.load(ctx);
+    })
+    .run(move |game, ctx| {
+        game.handle_events();
+        game.update(ctx);
+        game.render(ctx);
+    });
 }

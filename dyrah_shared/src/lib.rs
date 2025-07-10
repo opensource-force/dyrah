@@ -1,104 +1,19 @@
-use serde::{Deserialize, Serialize};
+pub mod components;
+pub mod messages;
 
-pub mod map;
+use glam::{IVec2, Vec2};
 
-pub use glam::{Vec2, vec2};
+pub const TILE_SIZE: f32 = 32.0;
 
-pub const TILE_SIZE: f32 = 32.;
-pub const TILE_OFFSET: f32 = 16.;
-pub const SPRITE_SIZE: f32 = 64.;
+pub type NetId = u32;
 
-#[derive(Serialize, Deserialize, Default, Clone, Copy)]
-pub struct Position {
-    pub vec: Vec2,
+pub fn tile_to_world(tile: IVec2) -> Vec2 {
+    Vec2::new(tile.x as f32, tile.y as f32) * TILE_SIZE
 }
 
-impl Position {
-    pub fn new(vec: Vec2) -> Self {
-        Self { vec }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone)]
-pub struct TargetPosition {
-    pub vec: Vec2,
-    pub path: Option<Vec<Vec2>>,
-}
-
-impl TargetPosition {
-    pub fn new(vec: Vec2) -> Self {
-        Self { vec, path: None }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct Health {
-    pub points: f32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum ServerMessage {
-    CreatureBatchSpawned(Vec<(Vec2, f32)>),
-    CreatureBatchMoved(Vec<(u64, Vec2)>),
-    PlayerConnected {
-        position: Vec2,
-        hp: f32,
-    },
-    PlayerMoved {
-        id: u64,
-        position: Vec2,
-        path: Option<Vec<Vec2>>,
-    },
-    EntityDamaged {
-        attacker: u64,
-        defender: u64,
-        hp: f32,
-    },
-    EntityDied {
-        killer: u64,
-        victim: u64,
-    },
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ClientInput {
-    pub left: bool,
-    pub up: bool,
-    pub right: bool,
-    pub down: bool,
-    pub mouse_target_pos: Option<Vec2>,
-    pub mouse_target: Option<u64>,
-}
-
-impl ClientInput {
-    pub fn to_direction(&self) -> Vec2 {
-        Vec2::new(
-            (self.right as i8 - self.left as i8) as f32,
-            (self.down as i8 - self.up as i8) as f32,
-        )
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum ClientMessage {
-    PlayerUpdate { input: ClientInput },
-}
-
-#[derive(Debug, Clone)]
-pub enum GameEvent {
-    PlayerMoved {
-        id: u64,
-        position: Vec2,
-        path: Option<Vec<Vec2>>,
-    },
-    EntityDamaged {
-        attacker: u64,
-        defender: u64,
-        hp: f32,
-    },
-    CreatureBatchMoved(Vec<(u64, Vec2)>),
-    EntityDied {
-        killer: u64,
-        victim: u64,
-    },
+pub fn world_to_tile(world: Vec2) -> IVec2 {
+    IVec2::new(
+        (world.x / TILE_SIZE).floor() as i32,
+        (world.y / TILE_SIZE).floor() as i32,
+    )
 }
