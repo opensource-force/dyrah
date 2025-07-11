@@ -17,20 +17,23 @@ use dyrah_shared::{
     NetId,
     components::Player,
     messages::{ClientInput, ClientMessage, ServerMessage},
-    world_to_tile,
 };
 
 use crate::{
     components::{Sprite, TargetWorldPos, WorldPos},
+    map::Map,
     sprite::Animation,
 };
 
 pub struct Game {
     client: Client<Transport>,
     world: World,
+    map: Map,
     lobby: HashMap<NetId, Entity>,
     last_input_time: f32,
     player_tex: Option<usize>,
+    player: Option<Entity>,
+    player_id: Option<NetId>,
 }
 
 impl Game {
@@ -38,21 +41,26 @@ impl Game {
         Self {
             client: Client::new(Transport::new("127.0.0.1:0"), "127.0.0.1:8080"),
             world: World::default(),
+            map: Map::new("assets/map.json"),
             lobby: HashMap::new(),
             last_input_time: 0.0,
             player_tex: None,
+            player: None,
+            player_id: None,
         }
     }
 
     pub fn load(&mut self, ctx: &mut InitContext) {
+        self.map.load(ctx);
         self.player_tex = Some(ctx.load_texture(include_bytes!("../../assets/wizard.png")));
     }
 
     pub fn handle_events(&mut self) {
         while let Some(event) = self.client.recv_event() {
             match event {
-                ClientEvent::Connected(_id) => {
+                ClientEvent::Connected(id) => {
                     println!("Connected to server!");
+                    self.player_id = Some(id);
                 }
                 ClientEvent::Disconnected => {
                     println!("Lost connection to server");
@@ -80,7 +88,11 @@ impl Game {
                         sprite_size: Vec2::new(32.0, 64.0),
                     },
                 ));
+
                 self.lobby.insert(id, player);
+                if self.player_id.is_some() {
+                    self.player = Some(player);
+                }
             }
             ServerMessage::PlayerMoved { id, position } => {
                 println!("Player {} moving..", id);
@@ -105,7 +117,7 @@ impl Game {
             .input
             .mouse_released(MouseButton::Left)
             .then_some(mouse_pos)
-            .map(|mp| world_to_tile(mp.into()));
+            .map(|mp| self.map.tiled.world_to_tile(mp.into()));
         let moving = left || up || right || down || mouse_tile_pos.is_some();
 
         self.world.query(
@@ -148,16 +160,21 @@ impl Game {
     pub fn render(&self, ctx: &mut Context) {
         ctx.graphics.clear(Color::BLUE);
 
+        self.map.draw_tiles(ctx);
+
         self.world
-            .query(|_, _: &Player, world_pos: &WorldPos, spr: &Sprite| {
+            .query(|player, _: &Player, world_pos: &WorldPos, spr: &Sprite| {
                 let draw_pos = world_pos.vec + spr.anim.offset(spr.frame_size, spr.sprite_size);
                 ctx.graphics
                     .rect()
                     .at(draw_pos)
-                    .color(Color::RED)
                     .size(Vec2::splat(64.0))
                     .texture(self.player_tex.unwrap())
                     .uv(spr.anim.frame());
+
+                if Some(player) == self.player {
+                    ctx.graphics.camera().target(world_pos.vec);
+                }
             });
     }
 }

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use bincode::{deserialize, serialize};
-use glam::Vec2;
 use secs::{Entity, World};
 use wrym::{
     server::{Server, ServerConfig, ServerEvent},
@@ -12,23 +11,31 @@ use dyrah_shared::{
     NetId,
     components::Player,
     messages::{ClientMessage, ServerMessage},
-    tile_to_world,
 };
 
-use crate::components::{TargetTilePos, TilePos};
+use crate::{
+    components::{Collider, TargetTilePos, TilePos},
+    map::{CollisionGrid, Map},
+};
 
 pub struct Game {
     server: Server<Transport>,
     lobby: HashMap<NetId, Entity>,
     world: World,
+    collision_grid: CollisionGrid,
+    map: Map,
 }
 
 impl Game {
     pub fn new() -> Self {
+        let map = Map::new("assets/map.json");
+
         Self {
             server: Server::new(Transport::new("127.0.0.1:8080"), ServerConfig::default()),
             lobby: HashMap::new(),
             world: World::default(),
+            collision_grid: CollisionGrid::new(&map),
+            map,
         }
     }
 
@@ -41,26 +48,35 @@ impl Game {
 
                     // sync existing players on new clients
                     for (&other_id, &player) in &self.lobby {
-                        let tile_pos = self.world.get::<TilePos>(player).unwrap();
+                        let target_pos = self.world.get::<TargetTilePos>(player).unwrap();
                         let msg = ServerMessage::PlayerSpawned {
                             id: other_id,
-                            position: tile_to_world(tile_pos.vec),
+                            position: self.map.tiled.tile_to_world(target_pos.vec),
                         };
 
                         self.server
                             .send_reliable_to(&addr, &serialize(&msg).unwrap(), true);
                     }
 
-                    let player =
-                        self.world
-                            .spawn((Player, TilePos::default(), TargetTilePos::default()));
+                    let spawn_pos = self.map.get_spawn("player").unwrap();
+                    let player = self.world.spawn((
+                        Player,
+                        TilePos { vec: spawn_pos },
+                        TargetTilePos { vec: spawn_pos },
+                        Collider,
+                    ));
                     self.lobby.insert(id, player);
 
-                    println!("Player {} spawned!", self.lobby.len());
+                    println!(
+                        "Spawned player {} at tile: {:?}, world: {:?}",
+                        id,
+                        spawn_pos,
+                        self.map.tiled.tile_to_world(spawn_pos)
+                    );
 
                     let msg = ServerMessage::PlayerSpawned {
                         id,
-                        position: Vec2::ZERO,
+                        position: self.map.tiled.tile_to_world(spawn_pos),
                     };
                     self.server
                         .broadcast_reliable(&serialize(&msg).unwrap(), true);
@@ -75,14 +91,18 @@ impl Game {
                         let mut target_pos = self.world.get_mut::<TargetTilePos>(player).unwrap();
                         let mut tile_pos = self.world.get_mut::<TilePos>(player).unwrap();
 
-                        target_pos.vec += input.to_direction();
-                        tile_pos.vec = target_pos.vec;
+                        let next_pos = target_pos.vec + input.to_direction();
 
-                        let msg = ServerMessage::PlayerMoved {
-                            id,
-                            position: tile_to_world(tile_pos.vec),
-                        };
-                        self.server.broadcast(&serialize(&msg).unwrap());
+                        if self.map.is_walkable(next_pos, &self.collision_grid) {
+                            target_pos.vec = next_pos;
+                            tile_pos.vec = next_pos;
+
+                            let msg = ServerMessage::PlayerMoved {
+                                id,
+                                position: self.map.tiled.tile_to_world(tile_pos.vec),
+                            };
+                            self.server.broadcast(&serialize(&msg).unwrap());
+                        }
                     }
                 }
             }
@@ -91,5 +111,6 @@ impl Game {
 
     pub fn update(&mut self, _dt: f32) {
         self.server.poll();
+        self.collision_grid.update(&self.map, &self.world);
     }
 }

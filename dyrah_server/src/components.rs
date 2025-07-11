@@ -10,3 +10,5 @@ pub struct TilePos {
 pub struct TargetTilePos {
     pub vec: IVec2,
 }
+
+pub struct Collider;

@@ -1,5 +1,6 @@
 mod components;
 mod game;
+mod map;
 
 use std::{
     thread,

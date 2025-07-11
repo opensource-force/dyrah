@@ -1,5 +1,6 @@
 mod components;
 mod game;
+mod map;
 mod sprite;
 
 use egor::app::App;
