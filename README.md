@@ -30,8 +30,8 @@ Dyrah is in early stages of development, so expect bugs and missing features
 - [x] Entity management (ECS)
 - [x] Input handling
 - [x] Camera system
-- [ ] Tilemap rendering
-- [ ] Collision detection
+- [x] Tilemap rendering
+- [x] Collision detection
 - [ ] Pathfinding
 - [ ] Combat system
 - [ ] NPC / AI
