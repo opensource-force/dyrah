@@ -94,6 +94,11 @@ impl Game {
                     self.player = Some(player);
                 }
             }
+            ServerMessage::PlayerDespawned { id } => {
+                println!("Player {} disappeared", id);
+
+                self.lobby.remove(&id).map(|p| self.world.despawn(p));
+            }
             ServerMessage::PlayerMoved { id, position } => {
                 println!("Player {} moving..", id);
 

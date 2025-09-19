@@ -83,6 +83,11 @@ impl Game {
                 }
                 ServerEvent::ClientDisconnected(id) => {
                     println!("Client {} disconnected.", id);
+
+                    self.lobby.remove(&id).map(|p| self.world.despawn(p));
+                    
+                    let msg = ServerMessage::PlayerDespawned { id };
+                    self.server.broadcast_reliable(&serialize(&msg).unwrap(), true);
                 }
                 ServerEvent::MessageReceived(id, bytes) => {
                     let ClientMessage::PlayerUpdate { input } = deserialize(&bytes).unwrap();

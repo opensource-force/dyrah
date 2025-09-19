@@ -6,6 +6,7 @@ use crate::NetId;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
     PlayerSpawned { id: NetId, position: Vec2 },
+    PlayerDespawned { id: NetId },
     PlayerMoved { id: NetId, position: Vec2 },
 }
 
